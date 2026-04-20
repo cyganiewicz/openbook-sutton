@@ -132,6 +132,13 @@ ALTER TABLE settings       ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read departments"
   ON departments FOR SELECT USING (true);
 
+-- Town Manager can insert new departments
+CREATE POLICY "TM inserts departments"
+  ON departments FOR INSERT
+  WITH CHECK (auth.uid() IN (
+    SELECT id FROM profiles WHERE role = 'town_manager'
+  ));
+
 -- Department heads can update only their own department's mutable fields
 CREATE POLICY "Dept head updates own dept"
   ON departments FOR UPDATE
@@ -214,6 +221,14 @@ CREATE POLICY "TM reads all profiles"
   USING (auth.uid() IN (
     SELECT id FROM profiles p2 WHERE p2.role = 'town_manager'
   ));
+
+-- TM can update any profile (for role/dept assignment)
+CREATE POLICY "TM updates all profiles"
+  ON profiles FOR UPDATE
+  USING (auth.uid() IN (
+    SELECT id FROM profiles p2 WHERE p2.role = 'town_manager'
+  ))
+  WITH CHECK (true);
 
 -- ---- settings ----
 CREATE POLICY "Public read settings"
