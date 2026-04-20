@@ -25,7 +25,7 @@ button{font-family:'Figtree',sans-serif}
 // 2. Run supabase/schema.sql in the SQL Editor, then supabase/seed.sql
 // 3. Replace the placeholders below with your Project URL and anon key
 //    (Project Settings → API → Project URL and anon/public key)
-const SUPABASE_URL = 'https://nrvghpmgfstozoovpizb.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://nrvghpmgfstozoovpizb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ydmdocG1nZnN0b3pvb3ZwaXpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODcxMzcsImV4cCI6MjA5MjI2MzEzN30.qkLAkm3lnqMhQj2uc19HxOejtoRlbLaQVqpjZhjRAQI';
 const DEMO_MODE = (SUPABASE_URL === 'YOUR_SUPABASE_URL');
 const _supa = (!DEMO_MODE && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -1393,11 +1393,13 @@ function TMDataUpload({onNav,refreshData}){
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 function SealMark({size=28}){return<svg width={size} height={size} viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/><circle cx="20" cy="20" r="13" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/><path d="M20 8 L22.5 15.5 L30.5 15.5 L24.5 20.5 L27 28 L20 23 L13 28 L15.5 20.5 L9.5 15.5 L17.5 15.5 Z" fill="oklch(0.72 0.12 82)" opacity="0.9"/></svg>;}
 
-function AuthForm({title,onSuccess}){
+function AuthForm({onSuccess}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
+  const [resetSent,setResetSent]=useState(false);
+  const [resetting,setResetting]=useState(false);
   const inp={width:'100%',padding:'9px 12px',borderRadius:7,border:'1px solid rgba(255,255,255,0.18)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box',marginBottom:8,outline:'none'};
   async function handleSignIn(e){
     e.preventDefault();setLoading(true);setError('');
@@ -1407,14 +1409,24 @@ function AuthForm({title,onSuccess}){
     if(profErr||!profile){setError('Account found but no role assigned. Contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
+  async function handleForgotPassword(e){
+    e.preventDefault();
+    if(!email){setError('Enter your email address above first.');return;}
+    setResetting(true);setError('');
+    const{error:resetErr}=await _supa.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    setResetting(false);
+    if(resetErr){setError(resetErr.message);}else{setResetSent(true);}
+  }
   return(
     <form onSubmit={handleSignIn} style={{display:'flex',flexDirection:'column'}}>
       <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Email</div>
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@suttonma.org" style={inp} required/>
       <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Password</div>
-      <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={inp} required/>
+      <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={inp}/>
       {error&&<div style={{fontSize:11,color:'#ffb3b3',marginBottom:8,lineHeight:1.4}}>{error}</div>}
-      <button type="submit" disabled={loading} style={{marginTop:4,width:'100%',padding:'9px',background:title==='dept'?'oklch(0.72 0.12 82)':'rgba(255,255,255,0.15)',border:'none',borderRadius:8,color:title==='dept'?'#1b2000':'#fff',fontSize:12,fontWeight:700,cursor:'pointer',opacity:loading?0.6:1}}>{loading?'Signing in…':'Sign In →'}</button>
+      {resetSent&&<div style={{fontSize:11,color:'#9effc9',marginBottom:8,lineHeight:1.4}}>Password reset email sent — check your inbox.</div>}
+      <button type="submit" disabled={loading} style={{marginTop:4,width:'100%',padding:'9px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer',opacity:loading?0.6:1}}>{loading?'Signing in…':'Sign In →'}</button>
+      <button type="button" onClick={handleForgotPassword} disabled={resetting} style={{marginTop:8,background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:11,cursor:'pointer',textAlign:'center',padding:0,fontFamily:'Figtree,sans-serif'}}>{resetting?'Sending…':'Forgot password?'}</button>
     </form>
   );
 }
@@ -1424,13 +1436,13 @@ function LoginScreen({onLogin}){
   const wrapStyle=(gold)=>({background:gold?'rgba(201,162,39,0.08)':'rgba(255,255,255,0.06)',borderRadius:14,border:`1px solid ${gold?'rgba(201,162,39,0.22)':'rgba(255,255,255,0.1)'}`,padding:26,display:'flex',flexDirection:'column'});
   return(
     <div style={{minHeight:'100vh',background:'oklch(0.22 0.07 155)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div style={{width:'100%',maxWidth:880}}>
+      <div style={{width:'100%',maxWidth:640}}>
         <div style={{textAlign:'center',marginBottom:44}}>
           <div style={{display:'inline-flex',alignItems:'center',gap:14,marginBottom:16}}><SealMark size={46}/><div style={{textAlign:'left'}}><div style={{fontSize:34,fontWeight:700,color:'#fff',fontFamily:"'Source Serif 4',serif",lineHeight:1}}>OpenBook</div><div style={{fontSize:12,color:'rgba(255,255,255,0.45)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Town of Sutton, Massachusetts</div></div></div>
           <p style={{color:'rgba(255,255,255,0.5)',fontSize:14,maxWidth:480,margin:'0 auto',lineHeight:1.65}}>Budget transparency and capital planning portal for residents, staff, and town leadership.</p>
           {DEMO_MODE&&<div style={{marginTop:12,display:'inline-block',background:'rgba(201,162,39,0.15)',border:'1px solid rgba(201,162,39,0.3)',borderRadius:8,padding:'6px 14px',fontSize:11,color:'rgba(255,255,255,0.6)'}}>Demo mode — configure Supabase in index.html for real authentication &amp; persistence</div>}
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:18}}>
           {/* Public */}
           <div style={wrapStyle(false)}>
             <div style={{fontSize:26,marginBottom:10}}>📊</div>
@@ -1438,32 +1450,22 @@ function LoginScreen({onLogin}){
             <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,flex:1}}>Explore the operating budget, department breakdowns, and capital plan. No login required.</p>
             <button onClick={()=>onLogin('public',null)} style={{marginTop:18,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter Public Portal →</button>
           </div>
-          {/* Dept */}
+          {/* Staff Login */}
           <div style={wrapStyle(true)}>
             <div style={{fontSize:26,marginBottom:10}}>🏛️</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Department Head</div>
-            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:12}}>Submit FY2027 budget and capital requests, track review status.</p>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Staff Login</div>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:12}}>Department heads and town leadership — sign in to submit or review budget requests.</p>
             {DEMO_MODE?(
               <>
                 <label style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Select Your Department</label>
                 <select value={selDept} onChange={e=>setSelDept(e.target.value)} style={{width:'100%',padding:'7px 9px',borderRadius:7,border:'1px solid rgba(201,162,39,0.28)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:11,fontFamily:'Figtree,sans-serif',marginBottom:12}}>
+                  <option value="tm" style={{background:'#1b3a2a'}}>Town Manager</option>
                   {DEPARTMENTS.filter(d=>d.id!=='debt'&&d.id!=='benefits').map(d=><option key={d.id} value={d.id} style={{background:'#1b3a2a'}}>{d.name}</option>)}
                 </select>
-                <button onClick={()=>onLogin('dept',selDept)} style={{width:'100%',padding:'10px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer'}}>Enter Department Portal →</button>
+                <button onClick={()=>onLogin(selDept==='tm'?'tm':'dept',selDept==='tm'?null:selDept)} style={{width:'100%',padding:'10px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer'}}>Enter Portal →</button>
               </>
             ):(
-              <AuthForm title="dept" onSuccess={onLogin}/>
-            )}
-          </div>
-          {/* TM */}
-          <div style={wrapStyle(false)}>
-            <div style={{fontSize:26,marginBottom:10}}>⚖️</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Town Manager</div>
-            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:8}}>Review all department requests, build the recommended budget, and publish to the public portal.</p>
-            {DEMO_MODE?(
-              <button onClick={()=>onLogin('tm',null)} style={{marginTop:10,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter TM Portal →</button>
-            ):(
-              <AuthForm title="tm" onSuccess={onLogin}/>
+              <AuthForm onSuccess={onLogin}/>
             )}
           </div>
         </div>
@@ -1513,7 +1515,45 @@ function Sidebar({role,deptId,view,onNav,onSwitch}){
   );
 }
 
-// ── APP ROOT ──────────────────────────────────────────────────────────────────
+// ── SET PASSWORD (after reset-link click) ─────────────────────────────────────
+function SetPasswordScreen({onDone}){
+  const [password,setPassword]=useState('');
+  const [confirm,setConfirm]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [done,setDone]=useState(false);
+  const inp={width:'100%',padding:'9px 12px',borderRadius:7,border:'1px solid rgba(255,255,255,0.18)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box',marginBottom:8,outline:'none'};
+  async function handleSet(e){
+    e.preventDefault();
+    if(password!==confirm){setError('Passwords do not match.');return;}
+    if(password.length<8){setError('Password must be at least 8 characters.');return;}
+    setLoading(true);setError('');
+    const{error:updErr}=await _supa.auth.updateUser({password});
+    setLoading(false);
+    if(updErr){setError(updErr.message);}else{setDone(true);setTimeout(()=>onDone(),1800);}
+  }
+  return(
+    <div style={{minHeight:'100vh',background:'oklch(0.22 0.07 155)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{width:'100%',maxWidth:360,background:'rgba(255,255,255,0.06)',borderRadius:14,border:'1px solid rgba(255,255,255,0.1)',padding:32}}>
+        <div style={{textAlign:'center',marginBottom:28}}><SealMark size={38}/><div style={{fontSize:20,fontWeight:700,color:'#fff',fontFamily:"'Source Serif 4',serif",marginTop:12}}>Set Your Password</div><p style={{fontSize:12,color:'rgba(255,255,255,0.45)',marginTop:8,lineHeight:1.6}}>Choose a password for your OpenBook account.</p></div>
+        {done?(
+          <div style={{textAlign:'center',fontSize:13,color:'#9effc9',lineHeight:1.6}}>✓ Password updated! Signing you in…</div>
+        ):(
+          <form onSubmit={handleSet} style={{display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Password</div>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters" style={inp} required/>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Confirm Password</div>
+            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="••••••••" style={inp} required/>
+            {error&&<div style={{fontSize:11,color:'#ffb3b3',marginBottom:8,lineHeight:1.4}}>{error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,width:'100%',padding:'9px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer',opacity:loading?0.6:1}}>{loading?'Saving…':'Set Password →'}</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function getSavedState(){try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}}
 
 function App(){
@@ -1525,6 +1565,7 @@ function App(){
   const [tweaks,setTweaks]=useState(false);
   const [loading,setLoading]=useState(!DEMO_MODE);
   const [tick,setTick]=useState(0);
+  const [passwordRecovery,setPasswordRecovery]=useState(false);
 
   const refreshData=useCallback(()=>{setTick(t=>t+1);},[]);
 
@@ -1550,6 +1591,7 @@ function App(){
     });
     const{data:{subscription}}=_supa.auth.onAuthStateChange((event)=>{
       if(event==='SIGNED_OUT'){setRole(null);setDeptId(null);setView('public/dashboard');}
+      if(event==='PASSWORD_RECOVERY'){setPasswordRecovery(true);}
     });
     return()=>subscription.unsubscribe();
   },[]);
@@ -1579,6 +1621,7 @@ function App(){
     </div>
   );
 
+  if(passwordRecovery)return<SetPasswordScreen onDone={()=>{setPasswordRecovery(false);setRole(null);}}/>;
   if(!role)return<LoginScreen onLogin={login}/>;
 
   function renderView(){
