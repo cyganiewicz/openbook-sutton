@@ -8,6 +8,7 @@
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body,#root{height:100%}
@@ -19,13 +20,23 @@ button{font-family:'Figtree',sans-serif}
 </head>
 <body><div id="root"></div>
 <script>
+// ── SUPABASE CONFIG ───────────────────────────────────────────────────────────
+// 1. Create a free project at supabase.com
+// 2. Run supabase/schema.sql in the SQL Editor, then supabase/seed.sql
+// 3. Replace the placeholders below with your Project URL and anon key
+//    (Project Settings → API → Project URL and anon/public key)
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const DEMO_MODE = (SUPABASE_URL === 'YOUR_SUPABASE_URL');
+const _supa = (!DEMO_MODE && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const TOWN={name:"Town of Sutton",state:"Massachusetts",fiscalYear:"FY2027",priorYear:"FY2026",population:9247,taxRate:18.42,priorTaxRate:17.95,totalBudget:22355000,priorBudget:21041000};
 const CATEGORIES={general_govt:{label:"General Government"},public_safety:{label:"Public Safety"},education:{label:"Education"},public_works:{label:"Public Works"},human_services:{label:"Human Services"},culture_rec:{label:"Culture & Recreation"},debt:{label:"Debt Service"},benefits:{label:"Employee Benefits"}};
 const CATEGORY_COLORS={general_govt:"#2d6a4f",public_safety:"#1b4332",education:"#c9a227",public_works:"#457b9d",human_services:"#52b788",culture_rec:"#6d9b7a",debt:"#7b6fa0",benefits:"#6b7f8e"};
 
 const LI=(code,name,fy25,fy26,fy27)=>({code,name,fy25_actual:fy25,fy26_approved:fy26,fy27_request:fy27,fy27_recommended:null});
-const DEPARTMENTS=[
+let DEPARTMENTS=[
   {id:"tm",name:"Town Manager & Select Board",shortName:"Town Manager",category:"general_govt",head:"Andrew Dowd, Town Manager",phone:"(508) 865-8722",email:"manager@suttonma.org",
    mission:"The Town Manager's Office provides executive leadership and administrative oversight for all town departments, implements Select Board policy directives, and ensures the efficient and transparent delivery of municipal services to Sutton residents.",
    highlights:["Third year of the FY2025–2027 Strategic Plan implementation","New resident communications platform launches Q1 FY2027","Workforce development and succession planning initiative underway"],
@@ -136,7 +147,7 @@ const DEPARTMENTS=[
    lineItems:[LI("6100","Health Insurance (GIC)",842000,892000,958000),LI("6200","Pension / Retirement Contribution",325000,348000,365000),LI("6300","Medicare",128000,135000,142000),LI("6400","Workers' Compensation",62000,65000,58000),LI("6500","Unemployment Insurance",18000,18000,18000)]}
 ];
 
-const ENTERPRISE_FUNDS=[
+let ENTERPRISE_FUNDS=[
   {id:"water",name:"Water Enterprise Fund",shortName:"Water",head:"Richard Gagne, DPW Director",
    mission:"The Water Enterprise Fund provides for the operation, maintenance, and capital improvement of the town's public water supply system, serving approximately 2,800 residential and commercial connections.",
    stats:[{label:"Active Connections",value:"2,812"},{label:"Avg Daily Demand",value:"1.2 MGD"},{label:"Water Rate (per 100 cf)",value:"$4.85"},{label:"Debt Outstanding",value:"$1.8M"}],
@@ -149,7 +160,7 @@ const ENTERPRISE_FUNDS=[
    lineItems:[{name:"Personnel Services",fy26_approved:322000,fy27_request:342000},{name:"WRSD Treatment Assessment",fy26_approved:485000,fy27_request:512000},{name:"Contracted Operations",fy26_approved:142000,fy27_request:152000},{name:"Supplies & Maintenance",fy26_approved:85000,fy27_request:92000},{name:"Debt Service",fy26_approved:125000,fy27_request:148000}]}
 ];
 
-const CAPITAL_PROJECTS=[
+let CAPITAL_PROJECTS=[
   {id:"cap001",name:"Highway Truck Replacement (10-Wheel Dump)",department:"dpw",description:"Replacement of 2006 International 10-wheel dump truck that has exceeded useful life. Used for snow & ice removal, road maintenance, and materials transport.",category:"Equipment",priority:"high",funding_source:"General Fund / Stabilization",status:"recommended",total:285000,years:[{year:"FY2027",amount:285000}]},
   {id:"cap002",name:"Fire Engine Replacement (Engine 3)",department:"fire",description:"Replacement of 2002 Pierce Arrow XT pumper that has exceeded NFPA 1901 service life standards. Required for ISO rating maintenance and firefighter safety.",category:"Equipment",priority:"high",funding_source:"General Fund / Borrowing",status:"recommended",total:620000,years:[{year:"FY2027",amount:620000}]},
   {id:"cap003",name:"Manchaug Road Bridge Reconstruction",department:"dpw",description:"Full reconstruction of structurally deficient bridge on Manchaug Road, currently posted at 10-ton limit. MassDOT Bridge Program provides 80% federal reimbursement.",category:"Infrastructure",priority:"high",funding_source:"Borrowing / Federal Aid (80%)",status:"recommended",total:1200000,years:[{year:"FY2027",amount:300000},{year:"FY2028",amount:900000}]},
@@ -175,10 +186,28 @@ function fmtFull(n){return`$${n.toLocaleString()}`;}
 function pctChg(a,b){return((b-a)/a)*100;}
 function getByCategoryTotals(){const t={};DEPARTMENTS.forEach(d=>{const c=d.category,a=d.fy27_request||d.fy26_approved;t[c]=(t[c]||0)+a;});return t;}
 function getSubmissionStats(){const c={not_started:0,submitted:0,under_review:0,approved:0,draft:0};DEPARTMENTS.forEach(d=>{c[d.request_status]=(c[d.request_status]||0)+1;});return c;}
+
+async function loadAllData(){
+  if(!_supa)return;
+  try{
+    const[dR,lR,cR,eR]=await Promise.all([
+      _supa.from('departments').select('*'),
+      _supa.from('line_items').select('*').order('dept_id').order('sort_order'),
+      _supa.from('capital_projects').select('*'),
+      _supa.from('enterprise_funds').select('*'),
+    ]);
+    if(dR.error||lR.error||cR.error||eR.error){console.error('Supabase load error',dR.error||lR.error||cR.error||eR.error);return;}
+    const byDept={};
+    (lR.data||[]).forEach(li=>{if(!byDept[li.dept_id])byDept[li.dept_id]=[];byDept[li.dept_id].push({code:li.code,name:li.name,fy25_actual:li.fy25_actual||0,fy26_approved:li.fy26_approved||0,fy27_request:li.fy27_request||0,fy27_recommended:li.fy27_recommended,_db_id:li.id});});
+    DEPARTMENTS=(dR.data||[]).map(d=>({id:d.id,name:d.name,shortName:d.short_name,category:d.category,head:d.head||'',phone:d.phone||'',email:d.email||'',mission:d.mission||'',highlights:d.highlights||[],fy25_actual:d.fy25_actual||0,fy26_approved:d.fy26_approved||0,fy27_request:d.fy27_request||0,fy27_recommended:d.fy27_recommended,fy27_approved:d.fy27_approved,request_status:d.request_status||'not_started',request_note:d.request_note||'',tm_note:d.tm_note,lineItems:byDept[d.id]||[]}));
+    CAPITAL_PROJECTS=(cR.data||[]).map(p=>({id:p.id,name:p.name,department:p.department,description:p.description||'',category:p.category||'',priority:p.priority||'medium',funding_source:p.funding_source||'',status:p.status||'under_review',total:p.total||0,years:p.years||[],tm_note:p.tm_note}));
+    ENTERPRISE_FUNDS=(eR.data||[]).map(f=>({id:f.id,name:f.name,shortName:f.short_name,head:f.head,mission:f.mission||'',stats:f.stats||[],fy25_actual:f.fy25_actual||0,fy26_approved:f.fy26_approved||0,fy27_request:f.fy27_request||0,lineItems:f.line_items||[]}));
+  }catch(e){console.error('loadAllData failed',e);}
+}
 </script>
 
 <script type="text/babel">
-const {useState,useEffect,useMemo,useRef}=React;
+const {useState,useEffect,useMemo,useRef,useCallback}=React;
 
 // ── Chart helpers ─────────────────────────────────────────────────────────────
 const CHART_COLORS=["#2d6a4f","#40916c","#c9a227","#52b788","#1b4332","#74c69d","#7b6fa0","#457b9d"];
@@ -567,20 +596,40 @@ function DeptDashboard({deptId,onNav}){
 }
 
 // ── INTERNAL: Budget Request Form ─────────────────────────────────────────────
-function BudgetRequestForm({deptId,onNav}){
+function BudgetRequestForm({deptId,onNav,refreshData}){
   const dept=DEPARTMENTS.find(d=>d.id===deptId);if(!dept)return null;
   const [items,setItems]=useState(dept.lineItems.map(li=>({...li})));
   const [narrative,setNarrative]=useState(dept.request_note||'');
   const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
   const totalReq=items.reduce((s,li)=>s+(parseInt(li.fy27_request)||0),0);
   const chg=pctChg(dept.fy26_approved,totalReq);
   function updateItem(i,val){const u=[...items];u[i]={...u[i],fy27_request:parseInt(val)||0};setItems(u);setSaved(false);}
+  async function handleSave(submit=false){
+    setSaving(true);setError('');
+    if(_supa){
+      try{
+        const[dErr,liErrs]=await Promise.all([
+          _supa.from('departments').update({request_note:narrative,request_status:submit?'submitted':'draft'}).eq('id',deptId).then(r=>r.error),
+          Promise.all(items.filter(li=>li._db_id).map(li=>_supa.from('line_items').update({fy27_request:li.fy27_request}).eq('id',li._db_id).then(r=>r.error)))
+        ]);
+        if(dErr||(liErrs||[]).some(Boolean)){throw new Error('Save failed — check console');}
+        await loadAllData();
+        if(refreshData)refreshData();
+      }catch(e){setError(e.message||'Save failed');setSaving(false);return;}
+    }
+    setSaving(false);setSaved(true);
+    if(submit)setTimeout(()=>onNav('dept/dashboard'),1000);
+  }
   return(
     <div style={{padding:'32px 36px',maxWidth:900}}>
       <button onClick={()=>onNav('dept/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to Dashboard</button>
       <h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>FY2027 Budget Request — {dept.shortName}</h1>
       <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Complete all line items and provide justification before submitting.</p>
       {saved&&<div style={{background:'#e8f5e9',border:'1px solid #c8e6c9',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#2e7d32',fontWeight:600,fontSize:12}}>Budget request saved successfully.</div>}
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#880e4f',fontWeight:600,fontSize:12}}>{error}</div>}
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'9px 14px',marginBottom:14,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> Changes will not be saved to a database. Configure Supabase in index.html to enable persistence.</div>}
       <Card style={{marginBottom:18}}>
         <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Detail</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Amounts exceeding 10% over prior year require additional justification.</p></div>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
@@ -604,20 +653,44 @@ function BudgetRequestForm({deptId,onNav}){
         <div style={{padding:20}}><textarea value={narrative} onChange={e=>{setNarrative(e.target.value);setSaved(false);}} rows={5} placeholder="Describe the rationale for your FY2027 budget request, key initiatives, staffing changes, and relevant context..." style={{width:'100%',padding:'10px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',lineHeight:1.6,resize:'vertical',boxSizing:'border-box'}}/></div>
       </Card>
       <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-        <button onClick={()=>setSaved(true)} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>Save Draft</button>
-        <button onClick={()=>{setSaved(true);setTimeout(()=>onNav('dept/dashboard'),1000);}} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Submit to Town Manager →</button>
+        <button onClick={()=>handleSave(false)} disabled={saving} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#2d6a4f',cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Save Draft'}</button>
+        <button onClick={()=>handleSave(true)} disabled={saving} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Submit to Town Manager →'}</button>
       </div>
     </div>
   );
 }
 
 // ── INTERNAL: Capital Request Form ────────────────────────────────────────────
-function CapitalRequestForm({deptId,onNav}){
+function CapitalRequestForm({deptId,onNav,refreshData}){
   const dept=DEPARTMENTS.find(d=>d.id===deptId);
   const [form,setForm]=useState({name:'',category:'Equipment',description:'',priority:'medium',funding:'General Fund',fy27:'',fy28:'',fy29:''});
   const [submitted,setSubmitted]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const inp={width:'100%',padding:'8px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box'};
+  async function handleSubmit(){
+    if(!form.name.trim()||!form.description.trim()){setError('Project Name and Description are required.');return;}
+    setSaving(true);setError('');
+    if(_supa){
+      try{
+        const years=[];
+        if(form.fy27)years.push({year:'FY2027',amount:parseInt(form.fy27)||0});
+        if(form.fy28)years.push({year:'FY2028',amount:parseInt(form.fy28)||0});
+        if(form.fy29)years.push({year:'FY2029',amount:parseInt(form.fy29)||0});
+        const {error:insErr}=await _supa.from('capital_projects').insert({
+          id:`cap_${deptId}_${Date.now()}`,name:form.name,department:deptId,
+          description:form.description,category:form.category,priority:form.priority,
+          funding_source:form.funding,status:'under_review',
+          total:years.reduce((s,y)=>s+y.amount,0),years
+        });
+        if(insErr)throw insErr;
+        await loadAllData();
+        if(refreshData)refreshData();
+      }catch(e){setError(e.message||'Submit failed');setSaving(false);return;}
+    }
+    setSaving(false);setSubmitted(true);
+  }
   if(submitted)return(
     <div style={{padding:'32px 36px',maxWidth:700}}>
       <div style={{background:'#e8f5e9',borderRadius:12,padding:'40px 32px',textAlign:'center',border:'1px solid #c8e6c9'}}>
@@ -633,6 +706,8 @@ function CapitalRequestForm({deptId,onNav}){
       <button onClick={()=>onNav('dept/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to Dashboard</button>
       <h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>New Capital Project Request</h1>
       <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Department: {dept?.name} — FY2027 Capital Improvement Plan</p>
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#880e4f',fontSize:12}}>{error}</div>}
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'9px 14px',marginBottom:14,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> This request will not be saved. Configure Supabase to enable persistence.</div>}
       <Card>
         <div style={{padding:26,display:'flex',flexDirection:'column',gap:18}}>
           <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Project Name *</label><input value={form.name} onChange={e=>setF('name',e.target.value)} placeholder="e.g. Ladder Truck Replacement" style={inp}/></div>
@@ -645,7 +720,7 @@ function CapitalRequestForm({deptId,onNav}){
           <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Estimated Cost by Year</label><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>{['fy27','fy28','fy29'].map((yr,i)=><div key={yr}><div style={{fontSize:10,color:'#7a9a86',marginBottom:4,fontWeight:600}}>FY{2027+i}</div><input type="number" value={form[yr]} onChange={e=>setF(yr,e.target.value)} placeholder="$0" style={inp}/></div>)}</div></div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10,paddingTop:4}}>
             <button onClick={()=>onNav('dept/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
-            <button onClick={()=>setSubmitted(true)} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Submit Request →</button>
+            <button onClick={handleSubmit} disabled={saving} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Submitting…':'Submit Request →'}</button>
           </div>
         </div>
       </Card>
@@ -711,15 +786,33 @@ function TMDashboard({onNav}){
 }
 
 // ── INTERNAL: TM Dept Review ──────────────────────────────────────────────────
-function TMDeptReview({deptId,onNav}){
+function TMDeptReview({deptId,onNav,refreshData}){
   const dept=DEPARTMENTS.find(d=>d.id===deptId)||DEPARTMENTS[0];
   const [items,setItems]=useState(dept.lineItems.map(li=>({...li,fy27_recommended:li.fy27_recommended??li.fy27_request})));
   const [note,setNote]=useState(dept.tm_note||'');
   const [status,setStatus]=useState(dept.request_status);
   const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
   const totalReq=items.reduce((s,li)=>s+li.fy27_request,0);
   const totalRec=items.reduce((s,li)=>s+(li.fy27_recommended??li.fy27_request),0);
   const savings=totalReq-totalRec;
+  async function handleSave(){
+    setSaving(true);setError('');
+    if(_supa){
+      try{
+        const[dErr,liErrs]=await Promise.all([
+          _supa.from('departments').update({tm_note:note,request_status:status,fy27_recommended:totalRec}).eq('id',deptId).then(r=>r.error),
+          Promise.all(items.filter(li=>li._db_id).map(li=>_supa.from('line_items').update({fy27_recommended:li.fy27_recommended??li.fy27_request}).eq('id',li._db_id).then(r=>r.error)))
+        ]);
+        if(dErr||(liErrs||[]).some(Boolean))throw new Error('Save failed — check console');
+        await loadAllData();
+        if(refreshData)refreshData();
+      }catch(e){setError(e.message||'Save failed');setSaving(false);return;}
+    }
+    setSaving(false);setSaved(true);
+    setTimeout(()=>onNav('tm/dashboard'),1200);
+  }
   return(
     <div style={{padding:'32px 36px',maxWidth:1000}}>
       <button onClick={()=>onNav('tm/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to TM Dashboard</button>
@@ -731,6 +824,7 @@ function TMDeptReview({deptId,onNav}){
         <StatCard label="vs. Prior Year" value={`${pctChg(dept.fy26_approved,totalRec)>0?'+':''}${pctChg(dept.fy26_approved,totalRec).toFixed(1)}%`} sub="Recommended change"/>
       </div>
       {saved&&<div style={{background:'#e8f5e9',border:'1px solid #c8e6c9',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#2e7d32',fontWeight:600,fontSize:12}}>Changes saved.</div>}
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#880e4f',fontSize:12}}>{error}</div>}
       {dept.request_note&&<Card style={{padding:'16px 20px',marginBottom:18,background:'#fffdf5',border:'1px solid #e8d88a'}}><div style={{fontSize:11,fontWeight:700,color:'#5a4000',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:5}}>Department Narrative</div><p style={{margin:0,fontSize:12,color:'#5a4a10',lineHeight:1.7}}>{dept.request_note}</p></Card>}
       <Card style={{marginBottom:18}}>
         <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Review</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Enter TM recommendation. Leave as-is to accept department request.</p></div>
@@ -762,20 +856,45 @@ function TMDeptReview({deptId,onNav}){
       </Card>
       <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
         <button onClick={()=>onNav('tm/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
-        <button onClick={()=>{setSaved(true);setTimeout(()=>onNav('tm/dashboard'),1200);}} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Save & Return →</button>
+        <button onClick={handleSave} disabled={saving} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Save & Return →'}</button>
       </div>
     </div>
   );
 }
 
 // ── INTERNAL: TM Capital & Publish ────────────────────────────────────────────
-function TMCapitalReview(){
+function TMCapitalReview({refreshData}){
   const [statuses,setStatuses]=useState({});
   const [notes,setNotes]=useState({});
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  async function handleSave(){
+    setSaving(true);
+    if(_supa){
+      const updates=[
+        ...Object.entries(statuses).map(([id,status])=>_supa.from('capital_projects').update({status}).eq('id',id)),
+        ...Object.entries(notes).map(([id,tm_note])=>_supa.from('capital_projects').update({tm_note}).eq('id',id)),
+      ];
+      await Promise.all(updates);
+      await loadAllData();
+      if(refreshData)refreshData();
+    }
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),3000);
+  }
   return(
     <div style={{padding:'32px 36px',maxWidth:1100}}>
-      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Plan Review</h1>
-      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>FY2027–FY2031 — Review and recommend capital projects</p>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+        <div>
+          <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Plan Review</h1>
+          <p style={{margin:0,color:'#5a7a66',fontSize:13}}>FY2027–FY2031 — Review and recommend capital projects</p>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          {saved&&<span style={{fontSize:12,color:'#2e7d32',fontWeight:600}}>Saved ✓</span>}
+          {DEMO_MODE&&<span style={{fontSize:11,color:'#856404'}}>Demo mode — changes not persisted</span>}
+          <button onClick={handleSave} disabled={saving} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:7,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Save Changes'}</button>
+        </div>
+      </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:22}}>
         <StatCard label="FY2027 Capital" value={fmt(CAPITAL_PROJECTS.filter(p=>p.years[0]?.year==='FY2027').reduce((s,p)=>s+p.years[0].amount,0))} sub="Year 1 total" accent/>
         <StatCard label="5-Year Total" value={fmt(CAPITAL_PROJECTS.reduce((s,p)=>s+p.total,0))} sub="FY2027–FY2031"/>
@@ -793,7 +912,7 @@ function TMCapitalReview(){
                 <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(proj.total)}</td>
                 <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{proj.years.map(y=>y.year).join(', ')}</td>
                 <td style={tdStyle}><select value={statuses[proj.id]||proj.status} onChange={e=>setStatuses(p=>({...p,[proj.id]:e.target.value}))} style={{padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}><option value="recommended">Recommended</option><option value="planned">Planned</option><option value="under_review">Under Review</option><option value="deferred">Deferred</option><option value="funded">Funded</option></select></td>
-                <td style={tdStyle}><input value={notes[proj.id]||''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:150,padding:'4px 8px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
+                <td style={tdStyle}><input value={notes[proj.id]??proj.tm_note??''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:150,padding:'4px 8px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
               </tr>
             );})}
           </tbody>
@@ -805,7 +924,15 @@ function TMCapitalReview(){
 
 function TMPublish({onNav}){
   const [published,setPublished]=useState(false);
+  const [publishing,setPublishing]=useState(false);
   const approved=DEPARTMENTS.filter(d=>d.request_status==='approved').length;
+  async function handlePublish(){
+    setPublishing(true);
+    if(_supa){
+      await _supa.from('settings').update({value:'true',updated_at:new Date().toISOString()}).eq('key','budget_published');
+    }
+    setPublishing(false);setPublished(true);
+  }
   if(published)return(
     <div style={{padding:'32px 36px',maxWidth:700}}>
       <div style={{background:'#e8f5e9',borderRadius:14,padding:'48px 40px',textAlign:'center',border:'1px solid #c8e6c9'}}>
@@ -836,7 +963,7 @@ function TMPublish({onNav}){
       </Card>
       <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
         <button onClick={()=>onNav('tm/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'10px 22px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Back</button>
-        <button onClick={()=>setPublished(true)} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'10px 26px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Publish to Public Portal →</button>
+        <button onClick={handlePublish} disabled={publishing} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'10px 26px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',opacity:publishing?0.6:1}}>{publishing?'Publishing…':'Publish to Public Portal →'}</button>
       </div>
     </div>
   );
@@ -845,40 +972,78 @@ function TMPublish({onNav}){
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 function SealMark({size=28}){return<svg width={size} height={size} viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/><circle cx="20" cy="20" r="13" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/><path d="M20 8 L22.5 15.5 L30.5 15.5 L24.5 20.5 L27 28 L20 23 L13 28 L15.5 20.5 L9.5 15.5 L17.5 15.5 Z" fill="oklch(0.72 0.12 82)" opacity="0.9"/></svg>;}
 
+function AuthForm({title,onSuccess}){
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const inp={width:'100%',padding:'9px 12px',borderRadius:7,border:'1px solid rgba(255,255,255,0.18)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box',marginBottom:8,outline:'none'};
+  async function handleSignIn(e){
+    e.preventDefault();setLoading(true);setError('');
+    const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
+    if(authErr){setError(authErr.message);setLoading(false);return;}
+    const{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
+    if(profErr||!profile){setError('Account found but no role assigned. Contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
+    onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
+  }
+  return(
+    <form onSubmit={handleSignIn} style={{display:'flex',flexDirection:'column'}}>
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Email</div>
+      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@suttonma.org" style={inp} required/>
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Password</div>
+      <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={inp} required/>
+      {error&&<div style={{fontSize:11,color:'#ffb3b3',marginBottom:8,lineHeight:1.4}}>{error}</div>}
+      <button type="submit" disabled={loading} style={{marginTop:4,width:'100%',padding:'9px',background:title==='dept'?'oklch(0.72 0.12 82)':'rgba(255,255,255,0.15)',border:'none',borderRadius:8,color:title==='dept'?'#1b2000':'#fff',fontSize:12,fontWeight:700,cursor:'pointer',opacity:loading?0.6:1}}>{loading?'Signing in…':'Sign In →'}</button>
+    </form>
+  );
+}
+
 function LoginScreen({onLogin}){
   const [selDept,setSelDept]=useState('tm');
+  const wrapStyle=(gold)=>({background:gold?'rgba(201,162,39,0.08)':'rgba(255,255,255,0.06)',borderRadius:14,border:`1px solid ${gold?'rgba(201,162,39,0.22)':'rgba(255,255,255,0.1)'}`,padding:26,display:'flex',flexDirection:'column'});
   return(
     <div style={{minHeight:'100vh',background:'oklch(0.22 0.07 155)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div style={{width:'100%',maxWidth:880}}>
         <div style={{textAlign:'center',marginBottom:44}}>
           <div style={{display:'inline-flex',alignItems:'center',gap:14,marginBottom:16}}><SealMark size={46}/><div style={{textAlign:'left'}}><div style={{fontSize:34,fontWeight:700,color:'#fff',fontFamily:"'Source Serif 4',serif",lineHeight:1}}>OpenBook</div><div style={{fontSize:12,color:'rgba(255,255,255,0.45)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Town of Sutton, Massachusetts</div></div></div>
           <p style={{color:'rgba(255,255,255,0.5)',fontSize:14,maxWidth:480,margin:'0 auto',lineHeight:1.65}}>Budget transparency and capital planning portal for residents, staff, and town leadership.</p>
+          {DEMO_MODE&&<div style={{marginTop:12,display:'inline-block',background:'rgba(201,162,39,0.15)',border:'1px solid rgba(201,162,39,0.3)',borderRadius:8,padding:'6px 14px',fontSize:11,color:'rgba(255,255,255,0.6)'}}>Demo mode — configure Supabase in index.html for real authentication &amp; persistence</div>}
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
           {/* Public */}
-          <div style={{background:'rgba(255,255,255,0.06)',borderRadius:14,border:'1px solid rgba(255,255,255,0.1)',padding:26,display:'flex',flexDirection:'column'}}>
+          <div style={wrapStyle(false)}>
             <div style={{fontSize:26,marginBottom:10}}>📊</div>
             <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Public Access</div>
             <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,flex:1}}>Explore the operating budget, department breakdowns, and capital plan. No login required.</p>
             <button onClick={()=>onLogin('public',null)} style={{marginTop:18,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter Public Portal →</button>
           </div>
           {/* Dept */}
-          <div style={{background:'rgba(201,162,39,0.08)',borderRadius:14,border:'1px solid rgba(201,162,39,0.22)',padding:26,display:'flex',flexDirection:'column'}}>
+          <div style={wrapStyle(true)}>
             <div style={{fontSize:26,marginBottom:10}}>🏛️</div>
             <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Department Head</div>
             <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:12}}>Submit FY2027 budget and capital requests, track review status.</p>
-            <label style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Select Your Department</label>
-            <select value={selDept} onChange={e=>setSelDept(e.target.value)} style={{width:'100%',padding:'7px 9px',borderRadius:7,border:'1px solid rgba(201,162,39,0.28)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:11,fontFamily:'Figtree,sans-serif',marginBottom:12}}>
-              {DEPARTMENTS.filter(d=>d.id!=='debt'&&d.id!=='benefits').map(d=><option key={d.id} value={d.id} style={{background:'#1b3a2a'}}>{d.name}</option>)}
-            </select>
-            <button onClick={()=>onLogin('dept',selDept)} style={{width:'100%',padding:'10px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer'}}>Enter Department Portal →</button>
+            {DEMO_MODE?(
+              <>
+                <label style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Select Your Department</label>
+                <select value={selDept} onChange={e=>setSelDept(e.target.value)} style={{width:'100%',padding:'7px 9px',borderRadius:7,border:'1px solid rgba(201,162,39,0.28)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:11,fontFamily:'Figtree,sans-serif',marginBottom:12}}>
+                  {DEPARTMENTS.filter(d=>d.id!=='debt'&&d.id!=='benefits').map(d=><option key={d.id} value={d.id} style={{background:'#1b3a2a'}}>{d.name}</option>)}
+                </select>
+                <button onClick={()=>onLogin('dept',selDept)} style={{width:'100%',padding:'10px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer'}}>Enter Department Portal →</button>
+              </>
+            ):(
+              <AuthForm title="dept" onSuccess={onLogin}/>
+            )}
           </div>
           {/* TM */}
-          <div style={{background:'rgba(255,255,255,0.06)',borderRadius:14,border:'1px solid rgba(255,255,255,0.1)',padding:26,display:'flex',flexDirection:'column'}}>
+          <div style={wrapStyle(false)}>
             <div style={{fontSize:26,marginBottom:10}}>⚖️</div>
             <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Town Manager</div>
-            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,flex:1}}>Review all department requests, build the recommended budget, and publish to the public portal.</p>
-            <button onClick={()=>onLogin('tm',null)} style={{marginTop:18,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter TM Portal →</button>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:8}}>Review all department requests, build the recommended budget, and publish to the public portal.</p>
+            {DEMO_MODE?(
+              <button onClick={()=>onLogin('tm',null)} style={{marginTop:10,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter TM Portal →</button>
+            ):(
+              <AuthForm title="tm" onSuccess={onLogin}/>
+            )}
           </div>
         </div>
         <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)'}}>FY2027 Budget Cycle · Town of Sutton, Massachusetts · Powered by OpenBook</div>
@@ -921,20 +1086,57 @@ function Sidebar({role,deptId,view,onNav,onSwitch}){
       </nav>
       <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',padding:12}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginBottom:7}}>FY2027 Budget Cycle</div>
-        <button onClick={onSwitch} style={{width:'100%',padding:'7px 12px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>Switch Role / Portal →</button>
+        <button onClick={onSwitch} style={{width:'100%',padding:'7px 12px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>{DEMO_MODE||role==='public'?'Switch Role / Portal →':'Sign Out →'}</button>
       </div>
     </div>
   );
 }
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
+function getSavedState(){try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}}
+
 function App(){
-  const saved=(()=>{try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}})();
-  const [role,setRole]=useState(saved?.role||null);
-  const [deptId,setDeptId]=useState(saved?.deptId||null);
+  const saved=getSavedState();
+  const [role,setRole]=useState(null);
+  const [deptId,setDeptId]=useState(null);
   const [view,setView]=useState(saved?.view||'public/dashboard');
   const [viewParam,setViewParam]=useState(saved?.viewParam||null);
   const [tweaks,setTweaks]=useState(false);
+  const [loading,setLoading]=useState(!DEMO_MODE);
+  const [tick,setTick]=useState(0);
+
+  const refreshData=useCallback(()=>{setTick(t=>t+1);},[]);
+
+  // On mount: restore session (live mode) or localStorage role (demo mode)
+  useEffect(()=>{
+    if(DEMO_MODE){
+      const s=getSavedState();
+      setRole(s?.role||null);setDeptId(s?.deptId||null);
+      return;
+    }
+    // Live mode: check existing Supabase session
+    _supa.auth.getSession().then(async({data:{session}})=>{
+      if(session){
+        const{data:profile}=await _supa.from('profiles').select('*').eq('id',session.user.id).single();
+        if(profile){
+          const r=profile.role==='town_manager'?'tm':'dept';
+          setRole(r);setDeptId(profile.dept_id||null);
+          setView(r==='tm'?'tm/dashboard':'dept/dashboard');
+        }
+      }
+      await loadAllData();
+      setLoading(false);
+    });
+    const{data:{subscription}}=_supa.auth.onAuthStateChange((event)=>{
+      if(event==='SIGNED_OUT'){setRole(null);setDeptId(null);setView('public/dashboard');}
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  // Re-fetch data when refreshData is triggered (live mode only)
+  useEffect(()=>{
+    if(!DEMO_MODE&&_supa&&tick>0){loadAllData();}
+  },[tick]);
 
   useEffect(()=>{try{localStorage.setItem('openbook_state',JSON.stringify({role,deptId,view,viewParam}));}catch{};},[role,deptId,view,viewParam]);
   useEffect(()=>{
@@ -944,6 +1146,17 @@ function App(){
 
   function login(r,d){setRole(r);setDeptId(d);setView(r==='public'?'public/dashboard':r==='dept'?'dept/dashboard':'tm/dashboard');setViewParam(null);}
   function nav(v,p=null){setView(v);setViewParam(p);}
+  async function handleSwitch(){
+    if(_supa&&role!=='public')await _supa.auth.signOut();
+    setRole(null);setDeptId(null);
+  }
+
+  if(loading)return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'oklch(0.22 0.07 155)',flexDirection:'column',gap:14}}>
+      <SealMark size={48}/>
+      <div style={{color:'rgba(255,255,255,0.6)',fontSize:13,fontFamily:'Figtree,sans-serif'}}>Loading OpenBook…</div>
+    </div>
+  );
 
   if(!role)return<LoginScreen onLogin={login}/>;
 
@@ -955,12 +1168,12 @@ function App(){
       case'public/enterprise':return<EnterpriseFunds/>;
       case'public/capital':return<CapitalPlan/>;
       case'dept/dashboard':return<DeptDashboard deptId={deptId} onNav={nav}/>;
-      case'dept/budget-request':return<BudgetRequestForm deptId={deptId} onNav={nav}/>;
-      case'dept/capital-request':return<CapitalRequestForm deptId={deptId} onNav={nav}/>;
+      case'dept/budget-request':return<BudgetRequestForm deptId={deptId} onNav={nav} refreshData={refreshData}/>;
+      case'dept/capital-request':return<CapitalRequestForm deptId={deptId} onNav={nav} refreshData={refreshData}/>;
       case'tm/dashboard':return<TMDashboard onNav={nav}/>;
-      case'tm/capital-review':return<TMCapitalReview/>;
+      case'tm/capital-review':return<TMCapitalReview refreshData={refreshData}/>;
       case'tm/publish':return<TMPublish onNav={nav}/>;
-      default:if(view.startsWith('tm/department'))return<TMDeptReview deptId={viewParam} onNav={nav}/>;return<PublicDashboard onNav={nav}/>;
+      default:if(view.startsWith('tm/department'))return<TMDeptReview deptId={viewParam} onNav={nav} refreshData={refreshData}/>;return<PublicDashboard onNav={nav}/>;
     }
   }
 
@@ -968,7 +1181,7 @@ function App(){
 
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
-      <Sidebar role={role} deptId={deptId} view={view} onNav={nav} onSwitch={()=>{setRole(null);setDeptId(null);}}/>
+      <Sidebar role={role} deptId={deptId} view={view} onNav={nav} onSwitch={handleSwitch}/>
       <main style={{flex:1,overflowY:'auto',background:'oklch(0.97 0.01 155)'}}>{renderView()}</main>
       {tweaks&&(
         <div style={{position:'fixed',bottom:20,right:20,background:'#fff',border:'1px solid #dde8e2',borderRadius:12,boxShadow:'0 4px 20px rgba(0,0,0,0.12)',padding:'16px 18px',width:220,zIndex:9999}}>
