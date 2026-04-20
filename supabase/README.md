@@ -141,5 +141,39 @@ This is useful for testing the UI before Supabase is configured.
 | Who              | Can do                                                      |
 |------------------|-------------------------------------------------------------|
 | Anyone (public)  | SELECT on departments, line_items, capital_projects, enterprise_funds, settings |
+| Authenticated    | INSERT own profile row (fallback if trigger didn't fire)    |
 | Department head  | UPDATE own department + line items; INSERT + UPDATE own capital projects |
 | Town Manager     | UPDATE all departments, line items, capital projects, settings |
+
+---
+
+## Troubleshooting: "Account found but profile could not be created"
+
+This error means the user authenticated successfully but no `profiles` row exists for them, and the app was unable to create one.
+
+**Most common cause:** The user account was created in Supabase Auth *before* the schema (including the `on_auth_user_created` trigger and the INSERT RLS policy) was applied.
+
+**Fix — run this in the SQL Editor:**
+
+```sql
+-- Re-apply the INSERT policy (safe to run even if it already exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'profiles' AND policyname = 'Users insert own profile'
+  ) THEN
+    EXECUTE 'CREATE POLICY "Users insert own profile"
+      ON profiles FOR INSERT WITH CHECK (auth.uid() = id)';
+  END IF;
+END$$;
+
+-- Create missing profile rows for any existing auth users
+INSERT INTO profiles (id, role, display_name)
+SELECT id, 'dept_head', ''
+FROM auth.users
+WHERE id NOT IN (SELECT id FROM profiles)
+ON CONFLICT (id) DO NOTHING;
+```
+
+Then assign the correct role to each account using the SQL in Step 6.

@@ -212,6 +212,11 @@ CREATE POLICY "TM updates enterprise_funds"
 CREATE POLICY "Users read own profile"
   ON profiles FOR SELECT USING (auth.uid() = id);
 
+-- Allow authenticated users to insert their own profile row (needed when
+-- the auto-create trigger did not fire for pre-existing auth accounts)
+CREATE POLICY "Users insert own profile"
+  ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
 CREATE POLICY "Users update own profile"
   ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (true);
 
