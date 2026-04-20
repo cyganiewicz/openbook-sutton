@@ -969,6 +969,414 @@ function TMPublish({onNav}){
   );
 }
 
+// ── INTERNAL: TM Department Manager ──────────────────────────────────────────
+function TMDepartmentManager({onNav,refreshData}){
+  const [view,setView]=useState('list');
+  const [editDept,setEditDept]=useState(null);
+  const emptyForm={id:'',name:'',shortName:'',category:'general_govt',head:'',phone:'',email:'',mission:'',highlights:''};
+  const [form,setForm]=useState(emptyForm);
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [error,setError]=useState('');
+  const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const inp={width:'100%',padding:'8px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box'};
+
+  function startEdit(dept){
+    setForm({id:dept.id,name:dept.name,shortName:dept.shortName||'',category:dept.category||'general_govt',head:dept.head||'',phone:dept.phone||'',email:dept.email||'',mission:dept.mission||'',highlights:(dept.highlights||[]).join('\n')});
+    setEditDept(dept);setView('edit');setSaved(false);setError('');
+  }
+  function startCreate(){setForm(emptyForm);setEditDept(null);setView('create');setSaved(false);setError('');}
+
+  async function handleSave(){
+    if(!form.name.trim()){setError('Department name is required.');return;}
+    setSaving(true);setError('');
+    const highlights=form.highlights.split('\n').map(s=>s.trim()).filter(Boolean);
+    const payload={name:form.name,short_name:form.shortName||form.name,category:form.category,head:form.head,phone:form.phone,email:form.email,mission:form.mission,highlights};
+    if(view==='create'){
+      const newId=form.id.trim()||form.name.toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,20);
+      if(_supa){
+        const{error:insErr}=await _supa.from('departments').insert({id:newId,...payload,fy25_actual:0,fy26_approved:0,fy27_request:0,request_status:'not_started'});
+        if(insErr){setError(insErr.message);setSaving(false);return;}
+        await loadAllData();if(refreshData)refreshData();
+      }else{
+        DEPARTMENTS.push({id:newId,name:payload.name,shortName:payload.short_name,category:payload.category,head:payload.head,phone:payload.phone,email:payload.email,mission:payload.mission,highlights,fy25_actual:0,fy26_approved:0,fy27_request:0,fy27_recommended:null,fy27_approved:null,request_status:'not_started',request_note:'',tm_note:null,lineItems:[]});
+      }
+    }else{
+      if(_supa){
+        const{error:updErr}=await _supa.from('departments').update(payload).eq('id',editDept.id);
+        if(updErr){setError(updErr.message);setSaving(false);return;}
+        await loadAllData();if(refreshData)refreshData();
+      }else{
+        const idx=DEPARTMENTS.findIndex(d=>d.id===editDept.id);
+        if(idx>=0)DEPARTMENTS[idx]={...DEPARTMENTS[idx],name:payload.name,shortName:payload.short_name,category:payload.category,head:payload.head,phone:payload.phone,email:payload.email,mission:payload.mission,highlights};
+      }
+    }
+    setSaving(false);setSaved(true);
+    setTimeout(()=>{setView('list');setSaved(false);},1000);
+  }
+
+  if(view!=='list')return(
+    <div style={{padding:'32px 36px',maxWidth:800}}>
+      <button onClick={()=>setView('list')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to Departments</button>
+      <h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{view==='create'?'New Department':'Edit Department'}</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>{view==='create'?'Add a new department to the budget system.':'Update department information and settings.'}</p>
+      {saved&&<div style={{background:'#e8f5e9',border:'1px solid #c8e6c9',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#2e7d32',fontWeight:600,fontSize:12}}>Saved successfully.</div>}
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#880e4f',fontSize:12}}>{error}</div>}
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'9px 14px',marginBottom:14,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> Changes update in-memory data only.</div>}
+      <Card>
+        <div style={{padding:26,display:'flex',flexDirection:'column',gap:16}}>
+          {view==='create'&&<div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Department ID <span style={{color:'#888',fontWeight:400,textTransform:'none'}}>(auto-generated if blank)</span></label><input value={form.id} onChange={e=>setF('id',e.target.value)} placeholder="e.g. parks_rec" style={inp}/></div>}
+          <div style={{display:'grid',gridTemplateColumns:'1.5fr 1fr',gap:14}}>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Department Name *</label><input value={form.name} onChange={e=>setF('name',e.target.value)} placeholder="e.g. Parks & Recreation" style={inp}/></div>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Short Name</label><input value={form.shortName} onChange={e=>setF('shortName',e.target.value)} placeholder="e.g. Parks" style={inp}/></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Category</label><select value={form.category} onChange={e=>setF('category',e.target.value)} style={{...inp,background:'#fff'}}>{Object.entries(CATEGORIES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Department Head</label><input value={form.head} onChange={e=>setF('head',e.target.value)} placeholder="e.g. Jane Smith, Director" style={inp}/></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Phone</label><input value={form.phone} onChange={e=>setF('phone',e.target.value)} placeholder="(508) 000-0000" style={inp}/></div>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Email</label><input value={form.email} onChange={e=>setF('email',e.target.value)} placeholder="dept@suttonma.org" style={inp}/></div>
+          </div>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mission Statement</label><textarea value={form.mission} onChange={e=>setF('mission',e.target.value)} rows={3} placeholder="Describe the department's core purpose and responsibilities..." style={{...inp,resize:'vertical',lineHeight:1.6}}/></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Highlights <span style={{color:'#888',fontWeight:400,textTransform:'none'}}>(one per line)</span></label><textarea value={form.highlights} onChange={e=>setF('highlights',e.target.value)} rows={3} placeholder="Key accomplishments or statistics, one per line..." style={{...inp,resize:'vertical',lineHeight:1.6}}/></div>
+        </div>
+      </Card>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:18}}>
+        <button onClick={()=>setView('list')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
+        <button onClick={handleSave} disabled={saving} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':view==='create'?'Create Department →':'Save Changes →'}</button>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22}}>
+        <div><h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Manage Departments</h1><p style={{margin:0,color:'#5a7a66',fontSize:13}}>Create, edit, and configure department pages</p></div>
+        <button onClick={startCreate} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'9px 18px',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ New Department</button>
+      </div>
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'9px 14px',marginBottom:14,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> Changes will update in-memory data only. Connect Supabase for persistence.</div>}
+      <Card style={{overflow:'hidden'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4',borderBottom:'1px solid #dde8e2'}}>
+            <th style={{...thStyle,paddingLeft:20}}>Department</th>
+            <th style={thStyle}>Category</th>
+            <th style={thStyle}>Head</th>
+            <th style={{...thStyle,textAlign:'right'}}>FY2027 Budget</th>
+            <th style={thStyle}>Status</th>
+            <th style={thStyle}></th>
+          </tr></thead>
+          <tbody>
+            {DEPARTMENTS.map((dept,i)=>(
+              <tr key={dept.id} style={{borderBottom:i<DEPARTMENTS.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+                <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{dept.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>ID: {dept.id}</div></td>
+                <td style={{...tdStyle,color:'#5a7a66'}}>{CATEGORIES[dept.category]?.label||dept.category}</td>
+                <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{dept.head||'—'}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy27_request)}</td>
+                <td style={tdStyle}><StatusPill status={dept.request_status}/></td>
+                <td style={{...tdStyle,paddingRight:20}}><button onClick={()=>startEdit(dept)} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>Edit →</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ── INTERNAL: TM User Management ──────────────────────────────────────────────
+const DEMO_USERS=[
+  {id:'u1',display_name:'Lisa Perkins',email:'treasurer@suttonma.org',role:'dept_head',dept_id:'treasurer'},
+  {id:'u2',display_name:'Maria Santos',email:'accounting@suttonma.org',role:'dept_head',dept_id:'accounting'},
+  {id:'u3',display_name:'Robert Chen',email:'assessing@suttonma.org',role:'dept_head',dept_id:'assessing'},
+  {id:'u4',display_name:'Patricia Walsh',email:'townclerk@suttonma.org',role:'dept_head',dept_id:'clerk'},
+  {id:'u5',display_name:'Chief Michael Brennan',email:'fire@suttonma.org',role:'dept_head',dept_id:'fire'},
+  {id:'u6',display_name:'Chief Daniel Sullivan',email:'police@suttonma.org',role:'dept_head',dept_id:'police'},
+];
+
+function TMUserManagement(){
+  const [demoUsers,setDemoUsers]=useState(DEMO_USERS);
+  const [liveUsers,setLiveUsers]=useState(null);
+  const [loadingUsers,setLoadingUsers]=useState(!DEMO_MODE);
+  const [showInvite,setShowInvite]=useState(false);
+  const [inviteForm,setInviteForm]=useState({email:'',display_name:'',dept_id:'',role:'dept_head'});
+  const [inviting,setInviting]=useState(false);
+  const [inviteMsg,setInviteMsg]=useState('');
+  const [error,setError]=useState('');
+  const [editingId,setEditingId]=useState(null);
+  const [editForm,setEditForm]=useState({});
+  const inp={width:'100%',padding:'7px 10px',borderRadius:6,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box'};
+
+  useEffect(()=>{
+    if(!_supa)return;
+    _supa.from('profiles').select('*').then(({data,error:e})=>{if(!e&&data)setLiveUsers(data);setLoadingUsers(false);});
+  },[]);
+
+  const displayUsers=liveUsers||demoUsers;
+  const setIF=(k,v)=>setInviteForm(f=>({...f,[k]:v}));
+
+  async function handleAddStaff(){
+    if(!inviteForm.email.trim()){setError('Email is required.');return;}
+    setInviting(true);setError('');setInviteMsg('');
+    if(_supa){
+      setInviteMsg('To create a new staff account, go to your Supabase Dashboard → Authentication → Users → Invite User. Enter their email and set the role/dept_id in the profiles table once they accept.');
+    }else{
+      const newUser={id:`u${Date.now()}`,display_name:inviteForm.display_name,email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id};
+      setDemoUsers(prev=>[...prev,newUser]);
+      setInviteMsg(`Staff member ${inviteForm.display_name||inviteForm.email} added (demo only).`);
+    }
+    setInviting(false);setShowInvite(false);setInviteForm({email:'',display_name:'',dept_id:'',role:'dept_head'});
+  }
+
+  async function handleUpdateUser(userId,updates){
+    if(_supa){
+      const{error:updErr}=await _supa.from('profiles').update(updates).eq('id',userId);
+      if(updErr){setError(updErr.message);return;}
+      setLiveUsers(prev=>prev.map(u=>u.id===userId?{...u,...updates}:u));
+    }else{
+      setDemoUsers(prev=>prev.map(u=>u.id===userId?{...u,...updates}:u));
+    }
+    setEditingId(null);
+  }
+
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1000}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22}}>
+        <div><h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>User Management</h1><p style={{margin:0,color:'#5a7a66',fontSize:13}}>Manage staff access and department assignments</p></div>
+        <button onClick={()=>setShowInvite(true)} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'9px 18px',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Add Staff Member</button>
+      </div>
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> In live mode, staff accounts are managed via Supabase authentication. Changes here are in-memory only.</div>}
+      {inviteMsg&&<div style={{background:'#e3f2fd',border:'1px solid #90caf9',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:12,color:'#0d47a1',lineHeight:1.6}}>{inviteMsg}</div>}
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#880e4f',fontSize:12}}>{error}</div>}
+      {showInvite&&(
+        <Card style={{marginBottom:22,border:'2px solid #2d6a4f'}}>
+          <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Add Staff Member</h3></div>
+          <div style={{padding:20,display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div><label style={{fontSize:10,fontWeight:700,color:'#3a5444',marginBottom:4,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Email *</label><input type="email" value={inviteForm.email} onChange={e=>setIF('email',e.target.value)} placeholder="staff@suttonma.org" style={inp}/></div>
+            <div><label style={{fontSize:10,fontWeight:700,color:'#3a5444',marginBottom:4,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Display Name</label><input value={inviteForm.display_name} onChange={e=>setIF('display_name',e.target.value)} placeholder="First Last, Title" style={inp}/></div>
+            <div><label style={{fontSize:10,fontWeight:700,color:'#3a5444',marginBottom:4,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Department Access</label><select value={inviteForm.dept_id} onChange={e=>setIF('dept_id',e.target.value)} style={{...inp,background:'#fff'}}><option value="">— All (Town Manager) —</option>{DEPARTMENTS.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+            <div><label style={{fontSize:10,fontWeight:700,color:'#3a5444',marginBottom:4,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Role</label><select value={inviteForm.role} onChange={e=>setIF('role',e.target.value)} style={{...inp,background:'#fff'}}><option value="dept_head">Department Head / Staff</option><option value="town_manager">Town Manager (Super-Admin)</option></select></div>
+          </div>
+          <div style={{padding:'0 20px 16px',display:'flex',gap:10,justifyContent:'flex-end'}}>
+            <button onClick={()=>setShowInvite(false)} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:7,padding:'7px 16px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
+            <button onClick={handleAddStaff} disabled={inviting} style={{background:'#1b3a2a',border:'none',borderRadius:7,padding:'7px 16px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:inviting?0.6:1}}>{inviting?'Adding…':'Add Staff Member →'}</button>
+          </div>
+        </Card>
+      )}
+      {loadingUsers?(
+        <div style={{textAlign:'center',padding:40,color:'#5a7a66',fontSize:13}}>Loading users…</div>
+      ):(
+        <Card style={{overflow:'hidden'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead><tr style={{background:'#f2f7f4',borderBottom:'1px solid #dde8e2'}}>
+              <th style={{...thStyle,paddingLeft:20}}>Name / Email</th>
+              <th style={thStyle}>Role</th>
+              <th style={thStyle}>Department Access</th>
+              <th style={{...thStyle,paddingRight:16}}></th>
+            </tr></thead>
+            <tbody>
+              {displayUsers.map((u,i)=>(
+                <tr key={u.id} style={{borderBottom:i<displayUsers.length-1?'1px solid #eef3f0':'none'}}>
+                  <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{u.display_name||u.email}</div><div style={{fontSize:10,color:'#8aaa96'}}>{u.email||u.id}</div></td>
+                  <td style={tdStyle}>
+                    {editingId===u.id?(
+                      <select value={editForm.role||u.role} onChange={e=>setEditForm(f=>({...f,role:e.target.value}))} style={{padding:'3px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}>
+                        <option value="dept_head">Department Head</option>
+                        <option value="town_manager">Town Manager</option>
+                      </select>
+                    ):(
+                      <span style={{fontSize:11,padding:'2px 8px',borderRadius:10,background:u.role==='town_manager'?'#1b3a2a':'#e8f5ee',color:u.role==='town_manager'?'#fff':'#2d6a4f',fontWeight:600}}>{u.role==='town_manager'?'Town Manager':'Dept Head'}</span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    {editingId===u.id?(
+                      <select value={editForm.dept_id??u.dept_id??''} onChange={e=>setEditForm(f=>({...f,dept_id:e.target.value}))} style={{padding:'3px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}>
+                        <option value="">— All (Town Manager) —</option>
+                        {DEPARTMENTS.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    ):(
+                      <span style={{color:'#5a7a66',fontSize:12}}>{u.dept_id?DEPARTMENTS.find(d=>d.id===u.dept_id)?.name||u.dept_id:'All Departments'}</span>
+                    )}
+                  </td>
+                  <td style={{...tdStyle,paddingRight:16}}>
+                    {editingId===u.id?(
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>handleUpdateUser(u.id,editForm)} style={{fontSize:11,fontWeight:600,color:'#fff',background:'#2d6a4f',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Save</button>
+                        <button onClick={()=>setEditingId(null)} style={{fontSize:11,fontWeight:600,color:'#555',background:'#f2f7f4',border:'1px solid #c8ddd4',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Cancel</button>
+                      </div>
+                    ):(
+                      <button onClick={()=>{setEditingId(u.id);setEditForm({role:u.role,dept_id:u.dept_id||''});}} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Edit</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+      {!DEMO_MODE&&<div style={{marginTop:14,padding:'12px 16px',background:'#f2f7f4',borderRadius:8,fontSize:11,color:'#5a7a66',lineHeight:1.6}}><strong>Note:</strong> To create new staff accounts, go to your Supabase Dashboard → Authentication → Users → Invite User. Use their @suttonma.org email. Once they accept and sign in, their profile will appear here for department assignment.</div>}
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Data Upload ──────────────────────────────────────────────────
+function TMDataUpload({onNav,refreshData}){
+  const [type,setType]=useState('operating');
+  const [csvText,setCsvText]=useState('');
+  const [preview,setPreview]=useState(null);
+  const [importing,setImporting]=useState(false);
+  const [imported,setImported]=useState(false);
+  const [error,setError]=useState('');
+
+  const OPERATING_TMPL=`dept_id,fy25_actual,fy26_approved,fy27_request\ntm,412000,438000,465000\ntreasurer,348000,362000,385000\nfire,1942000,2048000,2185000`;
+  const CAPITAL_TMPL=`id,name,department,category,priority,funding_source,status,fy2027,fy2028,fy2029,description\ncap_new001,New Equipment Purchase,dpw,Equipment,high,General Fund,planned,150000,0,0,Replace aging equipment`;
+
+  function parseCSV(text){
+    const lines=text.trim().split('\n').filter(l=>l.trim());
+    if(lines.length<2)return[];
+    const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
+    return lines.slice(1).map(line=>{const vals=line.split(',').map(v=>v.trim());const row={};headers.forEach((h,i)=>row[h]=vals[i]||'');return row;});
+  }
+
+  function handlePreview(){
+    setError('');setPreview(null);
+    if(!csvText.trim()){setError('Please paste CSV data or upload a file.');return;}
+    const rows=parseCSV(csvText);
+    if(!rows.length){setError('No valid rows found. Check CSV format.');return;}
+    if(type==='operating'){
+      const valid=rows.filter(r=>r.dept_id);
+      const matched=valid.filter(r=>DEPARTMENTS.find(d=>d.id===r.dept_id));
+      const unmatched=valid.filter(r=>!DEPARTMENTS.find(d=>d.id===r.dept_id));
+      setPreview({rows:valid,matched,unmatched});
+    }else{
+      const valid=rows.filter(r=>r.id&&r.name);
+      setPreview({rows:valid});
+    }
+  }
+
+  async function handleImport(){
+    if(!preview)return;
+    setImporting(true);setError('');
+    if(type==='operating'){
+      if(_supa){
+        const results=await Promise.all(preview.matched.map(r=>_supa.from('departments').update({fy25_actual:parseInt(r.fy25_actual)||0,fy26_approved:parseInt(r.fy26_approved)||0,fy27_request:parseInt(r.fy27_request)||0}).eq('id',r.dept_id)));
+        const err=results.find(r=>r.error);
+        if(err){setError('Import error: '+err.error.message);setImporting(false);return;}
+        await loadAllData();if(refreshData)refreshData();
+      }else{
+        preview.matched.forEach(r=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);if(dept){dept.fy25_actual=parseInt(r.fy25_actual)||dept.fy25_actual;dept.fy26_approved=parseInt(r.fy26_approved)||dept.fy26_approved;dept.fy27_request=parseInt(r.fy27_request)||dept.fy27_request;}});
+      }
+    }else{
+      if(_supa){
+        const results=await Promise.all(preview.rows.map(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});return _supa.from('capital_projects').upsert({id:r.id,name:r.name,department:r.department||null,category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',description:r.description||'',total:years.reduce((s,y)=>s+y.amount,0),years});}));
+        const err=results.find(r=>r.error);
+        if(err){setError('Import error: '+err.error.message);setImporting(false);return;}
+        await loadAllData();if(refreshData)refreshData();
+      }else{
+        preview.rows.forEach(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});const proj={id:r.id,name:r.name,department:r.department||null,description:r.description||'',category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',total:years.reduce((s,y)=>s+y.amount,0),years};const idx=CAPITAL_PROJECTS.findIndex(p=>p.id===r.id);if(idx>=0)CAPITAL_PROJECTS[idx]=proj;else CAPITAL_PROJECTS.push(proj);});
+      }
+    }
+    setImporting(false);setImported(true);
+    setCsvText('');setPreview(null);
+  }
+
+  function handleFileUpload(e){
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>setCsvText(ev.target.result);
+    reader.readAsText(file);
+  }
+
+  if(imported)return(
+    <div style={{padding:'32px 36px',maxWidth:700}}>
+      <div style={{background:'#e8f5e9',borderRadius:12,padding:'40px 32px',textAlign:'center',border:'1px solid #c8e6c9'}}>
+        <div style={{fontSize:36,marginBottom:10,color:'#2d6a4f'}}>✓</div>
+        <h2 style={{margin:'0 0 8px',fontSize:20,fontWeight:700,color:'#1b3a2a',fontFamily:"'Source Serif 4',serif"}}>Data Imported Successfully</h2>
+        <p style={{margin:'0 0 22px',color:'#4a6a58',fontSize:13}}>The budget data has been imported and is now reflected in the portal.</p>
+        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+          <button onClick={()=>setImported(false)} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>Import More Data</button>
+          <button onClick={()=>onNav('tm/dashboard')} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'9px 22px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Back to Dashboard →</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{padding:'32px 36px',maxWidth:900}}>
+      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Upload Historical Data</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Import prior year budgets, actuals, and capital project data from CSV files</p>
+      {DEMO_MODE&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'9px 14px',marginBottom:14,fontSize:11,color:'#856404'}}><strong>Demo mode:</strong> Data will update in-memory only. Connect Supabase for persistence.</div>}
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#880e4f',fontSize:12}}>{error}</div>}
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Data Type</h3></div>
+        <div style={{padding:'16px 20px',display:'flex',gap:12}}>
+          {[['operating','Operating Budget','Department budget figures (actuals, approved, requests)'],['capital','Capital Projects','Capital improvement plan projects']].map(([t,l,d])=>(
+            <button key={t} onClick={()=>{setType(t);setPreview(null);setCsvText('');}} style={{flex:1,padding:'14px 16px',borderRadius:8,border:`2px solid ${type===t?'#2d6a4f':'#dde8e2'}`,background:type===t?'#e8f5ee':'#fff',cursor:'pointer',textAlign:'left'}}>
+              <div style={{fontSize:13,fontWeight:700,color:type===t?'#1b3a2a':'#1b2e22',marginBottom:3}}>{l}</div>
+              <div style={{fontSize:11,color:'#5a7a66'}}>{d}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>CSV Data</h3>
+          <button onClick={()=>setCsvText(type==='operating'?OPERATING_TMPL:CAPITAL_TMPL)} style={{fontSize:11,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Load Template</button>
+        </div>
+        <div style={{padding:20}}>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:6,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Upload CSV File</label>
+            <input type="file" accept=".csv,.txt" onChange={handleFileUpload} style={{fontSize:12,fontFamily:'Figtree,sans-serif'}}/>
+          </div>
+          <label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Or Paste CSV Data</label>
+          <textarea value={csvText} onChange={e=>{setCsvText(e.target.value);setPreview(null);}} rows={8} placeholder={type==='operating'?'dept_id,fy25_actual,fy26_approved,fy27_request\ntm,412000,438000,465000':'id,name,department,category,priority,funding_source,status,fy2027,fy2028,fy2029,description'} style={{width:'100%',padding:'10px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:11,fontFamily:'monospace',lineHeight:1.6,resize:'vertical',boxSizing:'border-box'}}/>
+          <div style={{marginTop:10,display:'flex',justifyContent:'flex-end'}}>
+            <button onClick={handlePreview} disabled={!csvText.trim()} style={{background:'#457b9d',border:'none',borderRadius:8,padding:'8px 18px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:!csvText.trim()?0.5:1}}>Preview Import →</button>
+          </div>
+        </div>
+      </Card>
+      {preview&&(
+        <Card style={{marginBottom:18}}>
+          <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Import Preview</h3></div>
+          <div style={{padding:20}}>
+            {type==='operating'?(
+              <>
+                <div style={{display:'flex',gap:12,marginBottom:14}}>
+                  <div style={{background:'#e8f5ee',borderRadius:7,padding:'8px 14px',fontSize:12}}><span style={{fontWeight:700,color:'#2d6a4f'}}>{preview.matched.length}</span><span style={{color:'#5a7a66'}}> departments matched</span></div>
+                  {preview.unmatched.length>0&&<div style={{background:'#fce4ec',borderRadius:7,padding:'8px 14px',fontSize:12}}><span style={{fontWeight:700,color:'#c00'}}>{preview.unmatched.length}</span><span style={{color:'#880e4f'}}> unrecognized: {preview.unmatched.map(r=>r.dept_id).join(', ')}</span></div>}
+                </div>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Department</th><th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th></tr></thead>
+                  <tbody>{preview.matched.map((r,i)=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);return(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{dept?.name||r.dept_id}</td><td style={{...tdStyle,textAlign:'right'}}>{parseInt(r.fy25_actual).toLocaleString()}</td><td style={{...tdStyle,textAlign:'right'}}>{parseInt(r.fy26_approved).toLocaleString()}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{parseInt(r.fy27_request).toLocaleString()}</td></tr>);})}</tbody>
+                </table>
+              </>
+            ):(
+              <>
+                <div style={{marginBottom:12,fontSize:12,color:'#5a7a66'}}>{preview.rows.length} capital project{preview.rows.length!==1?'s':''} to import/update</div>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Project</th><th style={thStyle}>Dept</th><th style={{...thStyle,textAlign:'right'}}>FY2027</th><th style={{...thStyle,textAlign:'right'}}>FY2028</th><th style={{...thStyle,textAlign:'right'}}>FY2029</th></tr></thead>
+                  <tbody>{preview.rows.map((r,i)=>(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{r.name}</td><td style={{...tdStyle,fontSize:10,color:'#8aaa96'}}>{r.department}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2027?parseInt(r.fy2027).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2028?parseInt(r.fy2028).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2029?parseInt(r.fy2029).toLocaleString():'—'}</td></tr>))}</tbody>
+                </table>
+              </>
+            )}
+            <div style={{marginTop:16,display:'flex',gap:10,justifyContent:'flex-end'}}>
+              <button onClick={()=>setPreview(null)} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'8px 18px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
+              <button onClick={handleImport} disabled={importing||(type==='operating'&&preview.matched.length===0)} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'8px 18px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer',opacity:(importing||(type==='operating'&&preview.matched.length===0))?0.5:1}}>{importing?'Importing…':'Confirm Import →'}</button>
+            </div>
+          </div>
+        </Card>
+      )}
+      <Card style={{padding:'16px 20px',background:'#f2f7f4'}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#1b2e22',marginBottom:10}}>CSV Format Reference</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,fontSize:11,color:'#5a7a66'}}>
+          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Operating Budget Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>dept_id, fy25_actual, fy26_approved, fy27_request</code><div style={{marginTop:4}}>dept_id must match existing IDs (tm, police, fire, dpw, etc.)</div></div>
+          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Capital Projects Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>id, name, department, category, priority,<br/>funding_source, status, fy2027, fy2028, fy2029, description</code></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 function SealMark({size=28}){return<svg width={size} height={size} viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/><circle cx="20" cy="20" r="13" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/><path d="M20 8 L22.5 15.5 L30.5 15.5 L24.5 20.5 L27 28 L20 23 L13 28 L15.5 20.5 L9.5 15.5 L17.5 15.5 Z" fill="oklch(0.72 0.12 82)" opacity="0.9"/></svg>;}
 
@@ -1056,7 +1464,7 @@ function LoginScreen({onLogin}){
 const NAV={
   public:[{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/enterprise',label:'Enterprise Funds'},{id:'public/capital',label:'Capital Plan'}],
   dept:[{section:'My Department'},{id:'dept/dashboard',label:'My Dashboard'},{id:'dept/budget-request',label:'FY2027 Budget Request'},{id:'dept/capital-request',label:'Capital Request'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/capital',label:'Capital Plan'}],
-  tm:[{section:'Town Manager'},{id:'tm/dashboard',label:'TM Dashboard'},{id:'tm/capital-review',label:'Capital Review'},{id:'tm/publish',label:'Publish Budget'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/capital',label:'Capital Plan'}]
+  tm:[{section:'Town Manager'},{id:'tm/dashboard',label:'TM Dashboard'},{id:'tm/capital-review',label:'Capital Review'},{id:'tm/departments',label:'Manage Departments'},{id:'tm/users',label:'User Management'},{id:'tm/upload',label:'Upload Historical Data'},{id:'tm/publish',label:'Publish Budget'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/capital',label:'Capital Plan'}]
 };
 
 function Sidebar({role,deptId,view,onNav,onSwitch}){
@@ -1086,7 +1494,7 @@ function Sidebar({role,deptId,view,onNav,onSwitch}){
       </nav>
       <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',padding:12}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginBottom:7}}>FY2027 Budget Cycle</div>
-        <button onClick={onSwitch} style={{width:'100%',padding:'7px 12px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>{DEMO_MODE||role==='public'?'Switch Role / Portal →':'Sign Out →'}</button>
+        <button onClick={onSwitch} style={{width:'100%',padding:'7px 12px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>{role==='public'?'Staff Login →':'Sign Out →'}</button>
       </div>
     </div>
   );
@@ -1097,7 +1505,7 @@ function getSavedState(){try{return JSON.parse(localStorage.getItem('openbook_st
 
 function App(){
   const saved=getSavedState();
-  const [role,setRole]=useState(null);
+  const [role,setRole]=useState('public');
   const [deptId,setDeptId]=useState(null);
   const [view,setView]=useState(saved?.view||'public/dashboard');
   const [viewParam,setViewParam]=useState(saved?.viewParam||null);
@@ -1111,7 +1519,7 @@ function App(){
   useEffect(()=>{
     if(DEMO_MODE){
       const s=getSavedState();
-      setRole(s?.role||null);setDeptId(s?.deptId||null);
+      setRole(s?.role||'public');setDeptId(s?.deptId||null);
       return;
     }
     // Live mode: check existing Supabase session
@@ -1172,6 +1580,9 @@ function App(){
       case'dept/capital-request':return<CapitalRequestForm deptId={deptId} onNav={nav} refreshData={refreshData}/>;
       case'tm/dashboard':return<TMDashboard onNav={nav}/>;
       case'tm/capital-review':return<TMCapitalReview refreshData={refreshData}/>;
+      case'tm/departments':return<TMDepartmentManager onNav={nav} refreshData={refreshData}/>;
+      case'tm/users':return<TMUserManagement/>;
+      case'tm/upload':return<TMDataUpload onNav={nav} refreshData={refreshData}/>;
       case'tm/publish':return<TMPublish onNav={nav}/>;
       default:if(view.startsWith('tm/department'))return<TMDeptReview deptId={viewParam} onNav={nav} refreshData={refreshData}/>;return<PublicDashboard onNav={nav}/>;
     }
