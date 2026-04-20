@@ -208,6 +208,38 @@ CREATE POLICY "TM updates enterprise_funds"
   ))
   WITH CHECK (true);
 
+-- ── Get-or-create profile (SECURITY DEFINER bypasses RLS) ───────────────────
+-- Called by the login flow so it works even when RLS policies are missing or
+-- when the account pre-dates the trigger that normally creates the profile row.
+CREATE OR REPLACE FUNCTION public.get_or_create_profile()
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_profile public.profiles%ROWTYPE;
+BEGIN
+  SELECT * INTO v_profile FROM public.profiles WHERE id = auth.uid();
+  IF NOT FOUND THEN
+    INSERT INTO public.profiles (id, role, display_name)
+    VALUES (auth.uid(), 'dept_head', '')
+    ON CONFLICT (id) DO NOTHING
+    RETURNING * INTO v_profile;
+
+    -- If INSERT did nothing (concurrent insert), fetch the existing row
+    IF NOT FOUND THEN
+      SELECT * INTO v_profile FROM public.profiles WHERE id = auth.uid();
+    END IF;
+  END IF;
+  RETURN v_profile;
+END;
+$$;
+
+-- Only authenticated users may call this function
+REVOKE ALL ON FUNCTION public.get_or_create_profile() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_or_create_profile() TO authenticated;
+
 -- ---- profiles ----
 CREATE POLICY "Users read own profile"
   ON profiles FOR SELECT USING (auth.uid() = id);
