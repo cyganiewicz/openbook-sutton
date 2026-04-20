@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>OpenBook — Town of Sutton, MA</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{font-family:'Figtree',sans-serif;background:oklch(0.97 0.01 155);color:#1b2e22;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#c8ddd4;border-radius:3px}
+input:focus,select:focus,textarea:focus{border-color:#2d6a4f!important;outline:none}
+button{font-family:'Figtree',sans-serif}
+</style>
+</head>
+<body><div id="root"></div>
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const TOWN={name:"Town of Sutton",state:"Massachusetts",fiscalYear:"FY2027",priorYear:"FY2026",population:9247,taxRate:18.42,priorTaxRate:17.95,totalBudget:22355000,priorBudget:21041000};
+const CATEGORIES={general_govt:{label:"General Government"},public_safety:{label:"Public Safety"},education:{label:"Education"},public_works:{label:"Public Works"},human_services:{label:"Human Services"},culture_rec:{label:"Culture & Recreation"},debt:{label:"Debt Service"},benefits:{label:"Employee Benefits"}};
+const CATEGORY_COLORS={general_govt:"#2d6a4f",public_safety:"#1b4332",education:"#c9a227",public_works:"#457b9d",human_services:"#52b788",culture_rec:"#6d9b7a",debt:"#7b6fa0",benefits:"#6b7f8e"};
+
+const LI=(code,name,fy25,fy26,fy27)=>({code,name,fy25_actual:fy25,fy26_approved:fy26,fy27_request:fy27,fy27_recommended:null});
+const DEPARTMENTS=[
+  {id:"tm",name:"Town Manager & Select Board",shortName:"Town Manager",category:"general_govt",head:"Andrew Dowd, Town Manager",phone:"(508) 865-8722",email:"manager@suttonma.org",
+   mission:"The Town Manager's Office provides executive leadership and administrative oversight for all town departments, implements Select Board policy directives, and ensures the efficient and transparent delivery of municipal services to Sutton residents.",
+   highlights:["Third year of the FY2025–2027 Strategic Plan implementation","New resident communications platform launches Q1 FY2027","Workforce development and succession planning initiative underway"],
+   fy25_actual:412000,fy26_approved:438000,fy27_request:465000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"FY2027 request reflects 3% COLA per collective bargaining agreement and expanded communications initiatives.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",308000,325000,342000),LI("2100","Professional Services",52000,58000,62000),LI("2200","Communications & Printing",18000,24000,28000),LI("3100","Office Supplies",8000,12000,14000),LI("5100","Travel & Training",12000,14000,15000),LI("5900","Other Charges",14000,5000,4000)]},
+  {id:"treasurer",name:"Treasurer/Collector",shortName:"Treasurer/Collector",category:"general_govt",head:"Lisa Perkins, Treasurer/Collector",phone:"(508) 865-8726",email:"treasurer@suttonma.org",
+   mission:"The Treasurer/Collector's Office manages the collection of all municipal revenues, including property taxes, excise taxes, and departmental fees, while maintaining sound investment of town funds.",
+   highlights:["Property tax collection rate: 98.9% — above state average","Online payment portal launched FY2026 — 34% of bills now paid digitally","Investment portfolio yield improved 42 basis points"],
+   fy25_actual:348000,fy26_approved:362000,fy27_request:385000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Increased professional services reflects growing complexity of investment management and state compliance reporting.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",268000,278000,292000),LI("2100","Professional Services",42000,48000,54000),LI("2200","Technology & Software",18000,20000,22000),LI("3100","Office Supplies",8000,9000,9000),LI("5100","Training & Dues",5000,7000,8000)]},
+  {id:"accounting",name:"Accounting",shortName:"Accounting",category:"general_govt",head:"Maria Santos, Town Accountant",phone:"(508) 865-8724",email:"accounting@suttonma.org",
+   mission:"The Accounting Department maintains all financial records, prepares financial statements, processes payroll and accounts payable, and ensures compliance with Massachusetts General Laws governing municipal finance.",
+   highlights:["Clean audit opinion — 8th consecutive year","New chart of accounts structure implemented","OPEB funding plan established per PERAC requirements"],
+   fy25_actual:262000,fy26_approved:278000,fy27_request:295000,fy27_recommended:null,fy27_approved:null,request_status:"under_review",
+   request_note:"Personnel increase reflects addition of part-time accounting assistant to manage increased grant tracking requirements.",tm_note:"Solid request. Will review PT position justification.",
+   lineItems:[LI("1100","Salaries & Wages",195000,208000,218000),LI("1200","Part-time",0,0,18000),LI("2100","Audit & Professional Services",38000,40000,42000),LI("2200","Technology & Software",14000,16000,16000),LI("3100","Supplies",3000,3000,3000)]},
+  {id:"assessing",name:"Assessing",shortName:"Assessing",category:"general_govt",head:"Robert Chen, Principal Assessor",phone:"(508) 865-8721",email:"assessing@suttonma.org",
+   mission:"The Board of Assessors determines the fair market value of all taxable property in Sutton for equitable distribution of the property tax burden, and administers exemption programs for qualifying residents.",
+   highlights:["Triennial recertification completed by DOR — FY2025","Average single-family assessed value: $498,400","Elderly & veteran exemption program serves 142 households"],
+   fy25_actual:202000,fy26_approved:215000,fy27_request:228000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Cyclical inspection program continues FY2027. Personnel request includes step increases per pay plan.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",148000,158000,165000),LI("2100","Appraisal & Professional Services",32000,35000,38000),LI("2200","CAMA Software",12000,14000,16000),LI("3100","Supplies & Mileage",5000,5000,6000),LI("5100","Training & Dues",3000,3000,3000)]},
+  {id:"clerk",name:"Town Clerk",shortName:"Town Clerk",category:"general_govt",head:"Patricia Walsh, Town Clerk",phone:"(508) 865-8723",email:"townclerk@suttonma.org",
+   mission:"The Town Clerk's Office is the official keeper of town records, administers all elections, issues licenses and permits, and provides vital public records access in accordance with Massachusetts law.",
+   highlights:["3 elections administered in FY2026","Voter registration rate: 78% of eligible residents","Records digitization project 62% complete"],
+   fy25_actual:175000,fy26_approved:187000,fy27_request:198000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"FY2027 is an election-heavy year. Election worker costs reflect current wage rates and anticipated turnout.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",122000,130000,136000),LI("1300","Election Workers",18000,22000,26000),LI("2100","Professional Services",12000,14000,14000),LI("3100","Supplies & Printing",14000,14000,15000),LI("5100","Training",4000,4000,4000)]},
+  {id:"inspectional",name:"Inspectional Services",shortName:"Inspectional Services",category:"general_govt",head:"James Kovac, Building Commissioner",phone:"(508) 865-8730",email:"building@suttonma.org",
+   mission:"Inspectional Services ensures safety of the built environment by enforcing state building, plumbing, electrical, and gas codes, administering zoning bylaws, and supporting responsible development.",
+   highlights:["Building permits issued FY2026: 412 — 18% increase","Permit revenue: $382,000 — 14% above projections","Online permit system reduced processing time 40%"],
+   fy25_actual:305000,fy26_approved:325000,fy27_request:348000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Sustained development activity requires additional inspection capacity. Request includes 0.5 FTE additional inspector.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",224000,238000,252000),LI("1400","Inspector Stipends",22000,24000,28000),LI("2100","Professional Services",28000,30000,32000),LI("2200","Technology",12000,14000,14000),LI("3100","Vehicle & Supplies",6000,7000,8000)]},
+  {id:"health",name:"Health Department",shortName:"Health",category:"human_services",head:"Dr. Susan Marcotte, Health Director",phone:"(508) 865-8725",email:"health@suttonma.org",
+   mission:"The Health Department protects and promotes the health and wellness of Sutton residents by enforcing sanitary and environmental codes, responding to public health emergencies, and providing preventive health programs.",
+   highlights:["Led town-wide COVID recovery and resilience planning","Food establishment inspections: 100% completion rate","Partnered with UMass Extension on tick-borne illness awareness"],
+   fy25_actual:252000,fy26_approved:268000,fy27_request:285000,fy27_recommended:null,fy27_approved:null,request_status:"not_started",
+   request_note:"",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",188000,200000,210000),LI("2100","Contracted Health Services",32000,36000,38000),LI("2200","Lab & Inspection Services",14000,16000,18000),LI("3100","Supplies & Equipment",8000,8000,10000),LI("5100","Training & Dues",5000,5000,6000)]},
+  {id:"communications",name:"Communications",shortName:"Communications",category:"general_govt",head:"Sarah Kim, Communications Manager",phone:"(508) 865-8728",email:"communications@suttonma.org",
+   mission:"The Communications Department manages the town's public information, digital platforms, and media relations to foster an informed and engaged community.",
+   highlights:["Town website traffic up 28% year-over-year","E-newsletter subscribers: 4,200 — up from 2,800 in FY2024","Launched OpenBook transparency portal (FY2027)"],
+   fy25_actual:162000,fy26_approved:175000,fy27_request:186000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"OpenBook portal hosting and maintenance included in technology line. Social media management contract renewed.",tm_note:"Priority department this year — support the launch.",
+   lineItems:[LI("1100","Salaries & Wages",118000,128000,132000),LI("2100","Design & Media Services",18000,22000,24000),LI("2200","Technology & Platforms",14000,16000,20000),LI("3100","Supplies & Printing",6000,6000,6000),LI("5100","Training",2000,3000,4000)]},
+  {id:"library",name:"Library",shortName:"Sutton Public Library",category:"culture_rec",head:"Margaret Hooper, Library Director",phone:"(508) 865-8723 x205",email:"library@suttonma.org",
+   mission:"The Sutton Free Public Library connects all community members to knowledge, ideas, and each other through free access to information, cultural programming, and lifelong learning.",
+   highlights:["Annual circulation: 68,400 items — highest on record","Program attendance: 14,200 — 38% increase over FY2025","Library card holders: 5,812 (63% of population)"],
+   fy25_actual:565000,fy26_approved:598000,fy27_request:632000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Personnel reflects step increases and addition of 0.5 FTE children's librarian to meet program demand.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",418000,442000,468000),LI("3200","Library Materials",68000,72000,76000),LI("2100","Technology & Online Resources",34000,38000,40000),LI("3100","Supplies & Programs",22000,24000,26000),LI("5100","Training & Conference",8000,10000,10000)]},
+  {id:"hr",name:"Human Resources",shortName:"Human Resources",category:"general_govt",head:"Diana Russo, HR Director",phone:"(508) 865-8729",email:"hr@suttonma.org",
+   mission:"Human Resources supports the town's employees through recruitment, onboarding, benefits administration, labor relations, and compliance with employment law.",
+   highlights:["42 positions hired or promoted in FY2026","Employee engagement survey: 71% participation rate","New DEI training curriculum adopted town-wide"],
+   fy25_actual:152000,fy26_approved:162000,fy27_request:172000,fy27_recommended:172000,fy27_approved:172000,request_status:"approved",
+   request_note:"Modest increase reflects negotiation support during upcoming collective bargaining cycle.",tm_note:"Approved as submitted. Labor relations work is essential this year.",
+   lineItems:[{...LI("1100","Salaries & Wages",112000,120000,126000),fy27_recommended:126000},{...LI("2100","Professional Services / LR",22000,26000,30000),fy27_recommended:30000},{...LI("2200","HRIS & Technology",10000,10000,10000),fy27_recommended:10000},{...LI("3100","Supplies & Wellness",4000,4000,4000),fy27_recommended:4000},{...LI("5100","Training & Dues",4000,4000,4000),fy27_recommended:4000}]},
+  {id:"planning",name:"Planning & Community Development",shortName:"Planning",category:"general_govt",head:"Kevin O'Brien, Town Planner",phone:"(508) 865-8731",email:"planning@suttonma.org",
+   mission:"The Planning & Community Development Department guides the long-range growth of Sutton through comprehensive planning, zoning administration, grant management, and coordination with regional agencies.",
+   highlights:["Master Plan update adopted — January 2026","MBTA Communities zoning bylaw developed and submitted","$1.2M in MassWorks and CPA grants secured FY2026"],
+   fy25_actual:278000,fy26_approved:298000,fy27_request:318000,fy27_recommended:null,fy27_approved:null,request_status:"under_review",
+   request_note:"Increased professional services supports MBTA Communities implementation and master plan implementation.",tm_note:"Reviewing grant match requirements vs. request.",
+   lineItems:[LI("1100","Salaries & Wages",195000,208000,218000),LI("2100","Professional & Planning Services",52000,62000,72000),LI("2200","GIS & Technology",14000,16000,18000),LI("3100","Supplies & Printing",8000,8000,8000),LI("5100","Training & Conference",4000,4000,4000)]},
+  {id:"fire",name:"Fire Department",shortName:"Fire",category:"public_safety",head:"Chief Michael Brennan",phone:"(508) 865-8747",email:"fire@suttonma.org",
+   mission:"The Sutton Fire Department provides emergency response services including fire suppression, emergency medical services, technical rescue, and hazardous materials response across 34 square miles.",
+   highlights:["Emergency calls FY2026: 2,148 (+6.2%)","EMS calls represent 61% of total call volume","ISO rating: Class 5 — supporting lower homeowner insurance rates"],
+   fy25_actual:1942000,fy26_approved:2048000,fy27_request:2185000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Personnel increase reflects new contract terms and call pay incentive program to address volunteer recruitment challenges.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages (Career)",1245000,1315000,1402000),LI("1300","Call Firefighter Pay",185000,198000,218000),LI("1400","Overtime",168000,175000,188000),LI("2100","Contracted Services",85000,92000,98000),LI("3200","Protective Gear & Supplies",125000,128000,135000),LI("4200","Vehicle Maintenance & Fuel",68000,72000,78000),LI("5100","Training & EMS Certification",42000,48000,52000)]},
+  {id:"police",name:"Police Department",shortName:"Police",category:"public_safety",head:"Chief Daniel Sullivan",phone:"(508) 865-8740",email:"police@suttonma.org",
+   mission:"The Sutton Police Department is committed to protecting the safety and rights of all people in Sutton through community policing, responsive patrol services, and criminal investigation.",
+   highlights:["Part I crimes: 112 — 8.2% reduction year-over-year","Community outreach events: 24 in FY2026","Body-worn camera program expansion to all patrol officers"],
+   fy25_actual:2525000,fy26_approved:2665000,fy27_request:2842000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Personnel reflects new collective bargaining agreement ratified November 2025. Adds 0.5 FTE administrative support.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",1865000,1975000,2108000),LI("1400","Overtime",225000,235000,255000),LI("2100","Contracted Services",145000,152000,162000),LI("3200","Supplies & Equipment",125000,130000,138000),LI("4200","Vehicle & Fuel",98000,105000,112000),LI("5100","Training",42000,48000,52000)]},
+  {id:"dpw",name:"Public Works",shortName:"Public Works",category:"public_works",head:"Richard Gagne, DPW Director",phone:"(508) 865-8750",email:"dpw@suttonma.org",
+   mission:"The Department of Public Works maintains 87 miles of roads, stormwater systems, public grounds, solid waste and recycling, and all town-owned buildings and facilities.",
+   highlights:["87 miles of roads maintained — 14.2 miles resurfaced FY2026","Solid waste & recycling diversion rate: 42%","ADA transition plan implementation ongoing across town facilities"],
+   fy25_actual:2185000,fy26_approved:2312000,fy27_request:2478000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Fuel, materials, and contracted services costs rising. Request includes COLA increases and additional seasonal help.",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",965000,1025000,1088000),LI("1300","Seasonal & Part-time",68000,72000,85000),LI("1400","Overtime (Snow & Ice)",125000,130000,138000),LI("2100","Contracted Services",348000,365000,388000),LI("3200","Materials & Supplies",285000,295000,318000),LI("4100","Fuel",185000,195000,215000),LI("4200","Vehicle & Equipment Maint.",145000,155000,165000)]},
+  {id:"senior",name:"Senior Center",shortName:"Senior Center",category:"human_services",head:"Patricia Dunleavy, Director",phone:"(508) 865-8727",email:"senior@suttonma.org",
+   mission:"The Sutton Senior Center provides social, educational, health, and supportive services to residents aged 60 and older, promoting independence, dignity, and quality of life.",
+   highlights:["Unduplicated seniors served: 842 in FY2026","Meals served through CNAAA partnership: 12,400","Transportation services: 1,850 trips provided"],
+   fy25_actual:258000,fy26_approved:275000,fy27_request:292000,fy27_recommended:null,fy27_approved:null,request_status:"not_started",
+   request_note:"",tm_note:null,
+   lineItems:[LI("1100","Salaries & Wages",185000,198000,210000),LI("2100","Contracted Program Services",38000,42000,46000),LI("3100","Supplies & Program Materials",18000,20000,22000),LI("4200","Van Maintenance",8000,8000,8000),LI("5100","Training",4000,4000,4000)]},
+  {id:"schools",name:"Sutton Public Schools",shortName:"Schools",category:"education",head:"Dr. Anthony Connors, Superintendent",phone:"(508) 865-8764",email:"superintendent@suttonschools.net",
+   mission:"Sutton Public Schools serves approximately 1,820 PreK–12 students committed to academic excellence, whole-child development, and preparing students for success in a changing world.",
+   highlights:["Enrollment: 1,820 students (PreK–12)","Graduation rate: 96.4% — above state average","District ranked in top 25% of MA districts for growth metrics"],
+   fy25_actual:7562000,fy26_approved:7985000,fy27_request:8456000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Town assessment increase of 5.9% reflects enrollment growth, special education out-of-district costs (+12%), and new collective bargaining agreements.",tm_note:null,
+   lineItems:[LI("1000","Town Assessment — Sutton Public Schools",7562000,7985000,8456000)]},
+  {id:"debt",name:"Debt Service",shortName:"Debt Service",category:"debt",head:"Maria Santos, Town Accountant",phone:"",email:"",
+   mission:"Debt Service represents the town's principal and interest payments on bonds and notes issued to finance capital projects approved by Town Meeting.",
+   highlights:["Outstanding bonded debt: $7.2M","Debt-to-assessed-value ratio: 1.2%","Three bonds maturing in FY2028"],
+   fy25_actual:1125000,fy26_approved:1185000,fy27_request:1248000,fy27_recommended:1248000,fy27_approved:1248000,request_status:"approved",
+   request_note:"Fixed obligation based on debt schedules.",tm_note:"Fixed obligation — approved.",
+   lineItems:[{...LI("7100","Principal Payments",725000,765000,808000),fy27_recommended:808000},{...LI("7200","Interest Payments",285000,298000,312000),fy27_recommended:312000},{...LI("7300","Short-term Note Interest",62000,72000,80000),fy27_recommended:80000},{...LI("7400","Issuance Costs",28000,38000,42000),fy27_recommended:42000}]},
+  {id:"benefits",name:"Employee Benefits",shortName:"Benefits",category:"benefits",head:"Diana Russo, HR Director",phone:"",email:"",
+   mission:"Employee Benefits encompasses the town's share of health insurance premiums, retirement contributions, Medicare, unemployment, and workers' compensation for all municipal employees.",
+   highlights:["Health insurance covered for 287 active and retiree subscribers","Pension contribution rate set by WORCRA — 12.8% of payroll","Workers' comp experience modifier: 0.82 (favorable)"],
+   fy25_actual:1385000,fy26_approved:1462000,fy27_request:1542000,fy27_recommended:null,fy27_approved:null,request_status:"submitted",
+   request_note:"Health insurance premiums increasing 7.5% per GIC rates. Pension contribution driven by WORCRA schedule.",tm_note:null,
+   lineItems:[LI("6100","Health Insurance (GIC)",842000,892000,958000),LI("6200","Pension / Retirement Contribution",325000,348000,365000),LI("6300","Medicare",128000,135000,142000),LI("6400","Workers' Compensation",62000,65000,58000),LI("6500","Unemployment Insurance",18000,18000,18000)]}
+];
+
+const ENTERPRISE_FUNDS=[
+  {id:"water",name:"Water Enterprise Fund",shortName:"Water",head:"Richard Gagne, DPW Director",
+   mission:"The Water Enterprise Fund provides for the operation, maintenance, and capital improvement of the town's public water supply system, serving approximately 2,800 residential and commercial connections.",
+   stats:[{label:"Active Connections",value:"2,812"},{label:"Avg Daily Demand",value:"1.2 MGD"},{label:"Water Rate (per 100 cf)",value:"$4.85"},{label:"Debt Outstanding",value:"$1.8M"}],
+   fy25_actual:1682000,fy26_approved:1782000,fy27_request:1892000,
+   lineItems:[{name:"Personnel Services",fy26_approved:548000,fy27_request:582000},{name:"Contracted Operations",fy26_approved:425000,fy27_request:448000},{name:"Chemicals & Supplies",fy26_approved:185000,fy27_request:198000},{name:"Utilities",fy26_approved:142000,fy27_request:158000},{name:"Debt Service",fy26_approved:285000,fy27_request:298000},{name:"Capital Outlay",fy26_approved:198000,fy27_request:208000}]},
+  {id:"sewer",name:"Sewer Enterprise Fund",shortName:"Sewer",head:"Richard Gagne, DPW Director",
+   mission:"The Sewer Enterprise Fund manages the collection, treatment, and disposal of wastewater from approximately 1,400 residential and commercial sewer connections, ensuring environmental compliance.",
+   stats:[{label:"Active Connections",value:"1,412"},{label:"Avg Daily Flow",value:"0.48 MGD"},{label:"Sewer Rate (per 100 cf)",value:"$7.25"},{label:"Debt Outstanding",value:"$2.4M"}],
+   fy25_actual:1118000,fy26_approved:1175000,fy27_request:1248000,
+   lineItems:[{name:"Personnel Services",fy26_approved:322000,fy27_request:342000},{name:"WRSD Treatment Assessment",fy26_approved:485000,fy27_request:512000},{name:"Contracted Operations",fy26_approved:142000,fy27_request:152000},{name:"Supplies & Maintenance",fy26_approved:85000,fy27_request:92000},{name:"Debt Service",fy26_approved:125000,fy27_request:148000}]}
+];
+
+const CAPITAL_PROJECTS=[
+  {id:"cap001",name:"Highway Truck Replacement (10-Wheel Dump)",department:"dpw",description:"Replacement of 2006 International 10-wheel dump truck that has exceeded useful life. Used for snow & ice removal, road maintenance, and materials transport.",category:"Equipment",priority:"high",funding_source:"General Fund / Stabilization",status:"recommended",total:285000,years:[{year:"FY2027",amount:285000}]},
+  {id:"cap002",name:"Fire Engine Replacement (Engine 3)",department:"fire",description:"Replacement of 2002 Pierce Arrow XT pumper that has exceeded NFPA 1901 service life standards. Required for ISO rating maintenance and firefighter safety.",category:"Equipment",priority:"high",funding_source:"General Fund / Borrowing",status:"recommended",total:620000,years:[{year:"FY2027",amount:620000}]},
+  {id:"cap003",name:"Manchaug Road Bridge Reconstruction",department:"dpw",description:"Full reconstruction of structurally deficient bridge on Manchaug Road, currently posted at 10-ton limit. MassDOT Bridge Program provides 80% federal reimbursement.",category:"Infrastructure",priority:"high",funding_source:"Borrowing / Federal Aid (80%)",status:"recommended",total:1200000,years:[{year:"FY2027",amount:300000},{year:"FY2028",amount:900000}]},
+  {id:"cap004",name:"Body-Worn Camera System Expansion",department:"police",description:"Expansion of body-worn camera program to all patrol officers plus interview room cameras. Includes 5-year storage contract.",category:"Technology",priority:"medium",funding_source:"General Fund",status:"recommended",total:48000,years:[{year:"FY2027",amount:48000}]},
+  {id:"cap005",name:"Primary School HVAC Replacement",department:"schools",description:"Replacement of original 1998 HVAC units at the Primary School. Units have exceeded useful life and failures are increasing.",category:"Buildings & Facilities",priority:"high",funding_source:"Borrowing",status:"planned",total:875000,years:[{year:"FY2028",amount:875000}]},
+  {id:"cap006",name:"Library Accessibility Improvements",department:"library",description:"ADA-compliant entrance, restroom upgrades, and signage improvements at the Sutton Free Public Library.",category:"Buildings & Facilities",priority:"medium",funding_source:"CPA / General Fund",status:"planned",total:128000,years:[{year:"FY2028",amount:128000}]},
+  {id:"cap007",name:"Water Main Replacement — Putnam Hill Rd (Phase 1)",department:"dpw",description:"Replacement of undersized 4-inch cast iron water main with 8-inch ductile iron main. Phase 1 of 3-phase project covering 1.2 miles.",category:"Infrastructure",priority:"high",funding_source:"Water Enterprise / Borrowing",status:"recommended",total:425000,years:[{year:"FY2027",amount:425000}]},
+  {id:"cap008",name:"Sewer Pump Station Upgrade — Hartland Ave",department:"dpw",description:"Complete rehabilitation of aging pump station including new pumps, controls, and SCADA integration.",category:"Infrastructure",priority:"high",funding_source:"Sewer Enterprise / Borrowing",status:"planned",total:385000,years:[{year:"FY2028",amount:385000}]},
+  {id:"cap009",name:"Town Hall IT Infrastructure Modernization",department:"tm",description:"Replacement of aging server infrastructure, network switching, and UPS systems across Town Hall campus. Last upgraded in 2016.",category:"Technology",priority:"medium",funding_source:"General Fund / Free Cash",status:"recommended",total:98000,years:[{year:"FY2027",amount:98000}]},
+  {id:"cap010",name:"Annual Road Resurfacing Program",department:"dpw",description:"Annual capital program for reclamation and overlay of highest-priority road segments per the Pavement Management Plan. Targets 3–4 miles per year.",category:"Infrastructure",priority:"high",funding_source:"Chapter 90 / General Fund",status:"recommended",total:1085000,years:[{year:"FY2027",amount:350000},{year:"FY2028",amount:350000},{year:"FY2029",amount:385000}]},
+  {id:"cap011",name:"Aerial Ladder Truck (75' Quint)",department:"fire",description:"Purchase of aerial ladder truck to provide elevated rescue and master stream capability. Sutton currently relies on mutual aid for aerial operations.",category:"Equipment",priority:"medium",funding_source:"Borrowing",status:"planned",total:1125000,years:[{year:"FY2029",amount:1125000}]},
+  {id:"cap012",name:"Millbury Street Playing Fields Improvements",department:"dpw",description:"Renovation of youth athletic fields including drainage, irrigation, fencing, and accessible pathway.",category:"Parks & Recreation",priority:"medium",funding_source:"CPA / General Fund",status:"planned",total:285000,years:[{year:"FY2029",amount:285000}]},
+  {id:"cap013",name:"Water Main Replacement — Putnam Hill Rd (Phase 2)",department:"dpw",description:"Phase 2 of Putnam Hill Road water main replacement covering an additional 1.1 miles.",category:"Infrastructure",priority:"medium",funding_source:"Water Enterprise / Borrowing",status:"planned",total:485000,years:[{year:"FY2029",amount:485000}]},
+  {id:"cap014",name:"Police Station Feasibility Study",department:"police",description:"Comprehensive needs assessment and feasibility study for police facility to address space and operational deficiencies in the current 1978 station.",category:"Buildings & Facilities",priority:"medium",funding_source:"General Fund",status:"under_review",total:65000,years:[{year:"FY2027",amount:65000}]},
+  {id:"cap015",name:"Senior Center Roof Replacement",department:"senior",description:"Full replacement of original flat roof at the Senior Center, including insulation upgrade and improved drainage. Current roof is 22 years old.",category:"Buildings & Facilities",priority:"medium",funding_source:"General Fund",status:"planned",total:145000,years:[{year:"FY2028",amount:145000}]}
+];
+
+const REVENUE={fy27:[{source:"Property Tax Levy",amount:15848000,percent:70.9},{source:"State Aid",amount:4235000,percent:18.9},{source:"Local Receipts",amount:1572000,percent:7.0},{source:"Free Cash / Available Funds",amount:700000,percent:3.1}]};
+const BUDGET_HISTORY=[{year:"FY2023",amount:19850000},{year:"FY2024",amount:20412000},{year:"FY2025",amount:20856000},{year:"FY2026",amount:21041000},{year:"FY2027",amount:22355000,proposed:true}];
+
+function fmt(n){if(n>=1000000)return`$${(n/1000000).toFixed(2)}M`;if(n>=1000)return`$${(n/1000).toFixed(0)}K`;return`$${n.toLocaleString()}`;}
+function fmtFull(n){return`$${n.toLocaleString()}`;}
+function pctChg(a,b){return((b-a)/a)*100;}
+function getByCategoryTotals(){const t={};DEPARTMENTS.forEach(d=>{const c=d.category,a=d.fy27_request||d.fy26_approved;t[c]=(t[c]||0)+a;});return t;}
+function getSubmissionStats(){const c={not_started:0,submitted:0,under_review:0,approved:0,draft:0};DEPARTMENTS.forEach(d=>{c[d.request_status]=(c[d.request_status]||0)+1;});return c;}
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useMemo,useRef}=React;
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+const CHART_COLORS=["#2d6a4f","#40916c","#c9a227","#52b788","#1b4332","#74c69d","#7b6fa0","#457b9d"];
+
+function useChart(canvasRef,getConfig,deps){
+  const inst=useRef(null);
+  useEffect(()=>{
+    if(!canvasRef.current)return;
+    if(inst.current){inst.current.destroy();inst.current=null;}
+    const cfg=getConfig();
+    if(cfg)inst.current=new Chart(canvasRef.current,cfg);
+    return()=>{if(inst.current){inst.current.destroy();inst.current=null;}};
+  },deps);
+}
+
+function DonutChart({labels,values,colors,centerLabel,centerSub,height=240}){
+  const ref=useRef(null);
+  useChart(ref,()=>({type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:colors||CHART_COLORS,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: $${(c.raw/1000000).toFixed(2)}M`}}}}}), [JSON.stringify(values)]);
+  return(
+    <div style={{position:'relative',height}}>
+      <canvas ref={ref}/>
+      {centerLabel&&<div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center',pointerEvents:'none'}}>
+        <div style={{fontSize:20,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif",lineHeight:1.1}}>{centerLabel}</div>
+        {centerSub&&<div style={{fontSize:10,color:'#5a7a66',marginTop:2,fontWeight:500,letterSpacing:'0.02em'}}>{centerSub}</div>}
+      </div>}
+    </div>
+  );
+}
+
+function BarChart({labels,datasets,height=240,horizontal=false,showLegend=true}){
+  const ref=useRef(null);
+  useChart(ref,()=>({type:'bar',data:{labels,datasets},options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:showLegend&&datasets.length>1,position:'top',labels:{font:{family:'Figtree',size:11},padding:12,boxWidth:10}},tooltip:{callbacks:{label:c=>` ${c.dataset.label||''}: $${c.raw.toLocaleString()}`}}},scales:{x:{stacked:false,grid:{display:!horizontal,color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'Figtree',size:10},maxRotation:horizontal?0:35}},y:{grid:{display:horizontal,color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'Figtree',size:10},callback:v=>horizontal?v:(v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}K`:`$${v}`)}}}}}),[JSON.stringify({labels,datasets})]);
+  return <div style={{height}}><canvas ref={ref}/></div>;
+}
+
+function LineChart({labels,datasets,height=200}){
+  const ref=useRef(null);
+  useChart(ref,()=>({type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` $${(c.raw/1000000).toFixed(2)}M`}}},scales:{x:{grid:{display:false},ticks:{font:{family:'Figtree',size:10}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'Figtree',size:10},callback:v=>`$${(v/1000000).toFixed(1)}M`}}}}}),[JSON.stringify(datasets)]);
+  return <div style={{height}}><canvas ref={ref}/></div>;
+}
+
+function Legend({labels,colors,values,total}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:7}}>
+      {labels.map((l,i)=>(
+        <div key={l} style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:10,height:10,borderRadius:3,background:colors?colors[i]:CHART_COLORS[i],flexShrink:0}}/>
+          <div style={{flex:1,fontSize:11,color:'#3a4a42',fontWeight:500,lineHeight:1.3}}>{l}</div>
+          {values&&<div style={{fontSize:11,color:'#1b2e22',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>{total?`${((values[i]/total)*100).toFixed(1)}%`:fmt(values[i])}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatCard({label,value,sub,delta,accent=false}){
+  return(
+    <div style={{background:accent?'#1b3a2a':'#fff',borderRadius:10,padding:'18px 22px',border:accent?'none':'1px solid #dde8e2',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+      <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:accent?'rgba(255,255,255,0.55)':'#6a8c78',marginBottom:5}}>{label}</div>
+      <div style={{fontSize:26,fontWeight:700,color:accent?'#fff':'#1b2e22',fontFamily:"'Source Serif 4',serif",lineHeight:1.1}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:accent?'rgba(255,255,255,0.5)':'#6a8c78',marginTop:3}}>{sub}</div>}
+      {delta!==undefined&&<div style={{marginTop:7,display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:delta>0?'#b91c1c':'#15803d',background:delta>0?'#fef2f2':'#f0fdf4',borderRadius:20,padding:'2px 8px'}}>{delta>0?'▲':'▼'} {Math.abs(delta).toFixed(1)}% vs prior year</div>}
+    </div>
+  );
+}
+
+// ── Shared UI ──────────────────────────────────────────────────────────────────
+const thStyle={padding:'11px 14px',fontWeight:700,fontSize:10,textTransform:'uppercase',letterSpacing:'0.05em',color:'#5a7a66',textAlign:'left'};
+const tdStyle={padding:'12px 14px'};
+
+const CAP_STATUS={recommended:{label:'Recommended',bg:'#e8f5e9',color:'#2e7d32'},funded:{label:'Funded',bg:'#e3f2fd',color:'#1565c0'},planned:{label:'Planned',bg:'#fff8e1',color:'#e65100'},under_review:{label:'Under Review',bg:'#fce4ec',color:'#880e4f'},deferred:{label:'Deferred',bg:'#f3e5f5',color:'#6a1b9a'}};
+const REQ_STATUS={not_started:{label:'Not Started',bg:'#f5f5f5',color:'#777',dot:'#aaa'},draft:{label:'Draft',bg:'#e8f4fd',color:'#1565c0',dot:'#64b5f6'},submitted:{label:'Submitted',bg:'#e8f5e9',color:'#2e7d32',dot:'#66bb6a'},under_review:{label:'Under Review',bg:'#fff8e1',color:'#e65100',dot:'#ffa726'},approved:{label:'Approved',bg:'#e0f7fa',color:'#00695c',dot:'#26c6da'}};
+
+function CapBadge({status}){const s=CAP_STATUS[status]||{label:status,bg:'#f5f5f5',color:'#555'};return <span style={{fontSize:10,fontWeight:700,letterSpacing:'0.04em',padding:'2px 8px',borderRadius:20,background:s.bg,color:s.color,textTransform:'uppercase'}}>{s.label}</span>;}
+function StatusPill({status}){const s=REQ_STATUS[status]||REQ_STATUS.not_started;return <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10,fontWeight:700,letterSpacing:'0.04em',padding:'3px 9px 3px 6px',borderRadius:20,background:s.bg,color:s.color,textTransform:'uppercase'}}><span style={{width:6,height:6,borderRadius:'50%',background:s.dot,flexShrink:0}}/>{s.label}</span>;}
+function Card({children,style={}}){return <div style={{background:'#fff',borderRadius:10,border:'1px solid #dde8e2',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',...style}}>{children}</div>;}
+
+// ── PUBLIC: Dashboard ─────────────────────────────────────────────────────────
+function PublicDashboard({onNav}){
+  const catT=getByCategoryTotals();
+  const catLabels=Object.keys(catT).map(k=>CATEGORIES[k]?.label||k);
+  const catValues=Object.values(catT);
+  const catColors=Object.keys(catT).map(k=>CATEGORY_COLORS[k]);
+  const topDepts=[...DEPARTMENTS].sort((a,b)=>b.fy27_request-a.fy27_request).slice(0,8);
+  const total27=TOWN.totalBudget,total26=TOWN.priorBudget;
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1200}}>
+      <div style={{marginBottom:28}}>
+        <div style={{fontSize:12,fontWeight:600,color:'#5a7a66',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:5}}>Town of Sutton, Massachusetts</div>
+        <h1 style={{margin:'0 0 8px',fontSize:32,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>FY2027 Operating Budget Overview</h1>
+        <p style={{margin:0,color:'#5a7a66',fontSize:14,maxWidth:660,lineHeight:1.6}}>The Town of Sutton's Proposed FY2027 General Fund budget is presented for public review. The fiscal year runs July 1, 2026 through June 30, 2027.</p>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:28}}>
+        <StatCard label="Proposed Budget" value={fmt(total27)} sub="General Fund" delta={pctChg(total26,total27)} accent/>
+        <StatCard label="Prior Year Budget" value={fmt(total26)} sub="FY2026 Approved"/>
+        <StatCard label="Tax Rate" value={`$${TOWN.taxRate.toFixed(2)}`} sub="per $1,000 assessed value" delta={pctChg(TOWN.priorTaxRate,TOWN.taxRate)}/>
+        <StatCard label="Enterprise Funds" value={fmt(ENTERPRISE_FUNDS.reduce((s,f)=>s+f.fy27_request,0))} sub="Water & Sewer"/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1.1fr 1fr',gap:18,marginBottom:18}}>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>Budget by Category</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>FY2027 Proposed General Fund — {fmt(total27)} total</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'center'}}>
+            <DonutChart labels={catLabels} values={catValues} colors={catColors} centerLabel={fmt(total27)} centerSub="Total Budget" height={210}/>
+            <Legend labels={catLabels} colors={catColors} values={catValues} total={total27}/>
+          </div>
+        </Card>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>Revenue Sources</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>How the FY2027 budget is funded</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'center'}}>
+            <DonutChart labels={REVENUE.fy27.map(r=>r.source)} values={REVENUE.fy27.map(r=>r.amount)} colors={['#2d6a4f','#40916c','#c9a227','#74c69d']} centerLabel="4 Sources" centerSub="of Revenue" height={210}/>
+            <Legend labels={REVENUE.fy27.map(r=>r.source)} colors={['#2d6a4f','#40916c','#c9a227','#74c69d']} values={REVENUE.fy27.map(r=>r.amount)} total={total27}/>
+          </div>
+        </Card>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:18,marginBottom:18}}>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>Top Departments — FY2027 vs FY2026</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>Proposed vs. prior year approved</p>
+          <BarChart labels={topDepts.map(d=>d.shortName)} datasets={[{label:'FY2026 Approved',data:topDepts.map(d=>d.fy26_approved),backgroundColor:'rgba(64,145,108,0.35)',borderColor:'#40916c',borderWidth:1.5,borderRadius:4},{label:'FY2027 Proposed',data:topDepts.map(d=>d.fy27_request),backgroundColor:'#2d6a4f',borderColor:'#1b4332',borderWidth:1.5,borderRadius:4}]} height={230}/>
+        </Card>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>5-Year Budget Trend</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>FY2023–FY2027 General Fund</p>
+          <LineChart labels={BUDGET_HISTORY.map(h=>h.year)} datasets={[{label:'Total Budget',data:BUDGET_HISTORY.map(h=>h.amount),borderColor:'#2d6a4f',backgroundColor:'rgba(45,106,79,0.1)',tension:0.35,fill:true,pointBackgroundColor:BUDGET_HISTORY.map(h=>h.proposed?'#c9a227':'#2d6a4f'),pointRadius:5}]} height={230}/>
+        </Card>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
+        {[{label:'View All Departments',sub:'16 departments & divisions',action:'public/departments'},{label:'Capital Plan',sub:'15 projects, FY2027–FY2031',action:'public/capital'},{label:'Enterprise Funds',sub:'Water & Sewer operations',action:'public/enterprise'}].map(l=>(
+          <button key={l.label} onClick={()=>onNav(l.action)} style={{background:'#f2f7f4',border:'1px solid #dde8e2',borderRadius:10,padding:'18px 20px',textAlign:'left',cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.background='#e6f0eb'} onMouseLeave={e=>e.currentTarget.style.background='#f2f7f4'}>
+            <div style={{fontSize:13,fontWeight:700,color:'#1b3a2a',marginBottom:3}}>{l.label} →</div>
+            <div style={{fontSize:11,color:'#6a8c78'}}>{l.sub}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── PUBLIC: Department List ───────────────────────────────────────────────────
+function DepartmentList({onNav}){
+  const [search,setSearch]=useState('');
+  const [cat,setCat]=useState('all');
+  const filtered=useMemo(()=>DEPARTMENTS.filter(d=>d.name.toLowerCase().includes(search.toLowerCase())&&(cat==='all'||d.category===cat)),[search,cat]);
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <h1 style={{margin:'0 0 6px',fontSize:28,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Department Budgets</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:14}}>FY2027 proposed operating budgets for all town departments</p>
+      <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search departments..." style={{flex:1,minWidth:180,padding:'8px 13px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:13,fontFamily:'Figtree,sans-serif'}}/>
+        <select value={cat} onChange={e=>setCat(e.target.value)} style={{padding:'8px 13px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:13,background:'#fff',fontFamily:'Figtree,sans-serif'}}>
+          <option value="all">All Categories</option>
+          {Object.entries(CATEGORIES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+      <Card style={{overflow:'hidden'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead><tr style={{background:'#f2f7f4',borderBottom:'1px solid #dde8e2'}}>
+            <th style={{...thStyle,paddingLeft:20}}>Department</th>
+            <th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th>
+            <th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th>
+            <th style={{...thStyle,textAlign:'right'}}>FY2027 Proposed</th>
+            <th style={{...thStyle,textAlign:'right'}}>Change</th>
+            <th style={thStyle}></th>
+          </tr></thead>
+          <tbody>
+            {filtered.map((dept,i)=>{
+              const c=pctChg(dept.fy26_approved,dept.fy27_request);
+              return(
+                <tr key={dept.id} style={{borderBottom:i<filtered.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+                  <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{dept.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{CATEGORIES[dept.category]?.label}</div></td>
+                  <td style={{...tdStyle,textAlign:'right',color:'#5a7a66'}}>{fmtFull(dept.fy25_actual)}</td>
+                  <td style={{...tdStyle,textAlign:'right',color:'#5a7a66'}}>{fmtFull(dept.fy26_approved)}</td>
+                  <td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b2e22'}}>{fmtFull(dept.fy27_request)}</td>
+                  <td style={{...tdStyle,textAlign:'right'}}><span style={{fontSize:11,fontWeight:600,color:c>5?'#b91c1c':c>0?'#c2410c':'#15803d'}}>{c>0?'+':''}{c.toFixed(1)}%</span></td>
+                  <td style={{...tdStyle,paddingRight:20}}><button onClick={()=>onNav('public/department',dept.id)} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>View →</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot><tr style={{background:'#1b3a2a',color:'#fff'}}>
+            <td style={{...tdStyle,paddingLeft:20,fontWeight:700,fontSize:12}}>TOTAL — General Fund</td>
+            <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(DEPARTMENTS.reduce((s,d)=>s+d.fy25_actual,0))}</td>
+            <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(DEPARTMENTS.reduce((s,d)=>s+d.fy26_approved,0))}</td>
+            <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(DEPARTMENTS.reduce((s,d)=>s+d.fy27_request,0))}</td>
+            <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{pctChg(DEPARTMENTS.reduce((s,d)=>s+d.fy26_approved,0),DEPARTMENTS.reduce((s,d)=>s+d.fy27_request,0)).toFixed(1)}%</td>
+            <td style={tdStyle}></td>
+          </tr></tfoot>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ── PUBLIC: Department Detail ─────────────────────────────────────────────────
+function DepartmentDetail({deptId,onNav}){
+  const dept=DEPARTMENTS.find(d=>d.id===deptId)||DEPARTMENTS[0];
+  const c=pctChg(dept.fy26_approved,dept.fy27_request);
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <button onClick={()=>onNav('public/departments')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← All Departments</button>
+      <div style={{background:'#1b3a2a',borderRadius:12,padding:'26px 30px',marginBottom:22,color:'#fff'}}>
+        <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'rgba(255,255,255,0.45)',marginBottom:5}}>{CATEGORIES[dept.category]?.label}</div>
+        <h1 style={{margin:'0 0 5px',fontSize:24,fontWeight:700,fontFamily:"'Source Serif 4',serif"}}>{dept.name}</h1>
+        <p style={{margin:0,color:'rgba(255,255,255,0.6)',fontSize:13}}>{dept.head}</p>
+        <div style={{display:'flex',gap:28,marginTop:18}}>
+          {[['FY2027 PROPOSED',fmtFull(dept.fy27_request)],['FY2026 APPROVED',fmtFull(dept.fy26_approved)],['YEAR CHANGE',`${c>0?'+':''}${c.toFixed(1)}%`]].map(([l,v],i)=>(
+            <div key={l}><div style={{fontSize:10,color:'rgba(255,255,255,0.45)',marginBottom:2}}>{l}</div><div style={{fontSize:20,fontWeight:700,color:i===2&&c>5?'#ffb3b3':i===2?'#c9a227':'#fff'}}>{v}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:18}}>
+        <div style={{display:'flex',flexDirection:'column',gap:18}}>
+          <Card style={{padding:22}}>
+            <h3 style={{margin:'0 0 8px',fontSize:13,fontWeight:700,color:'#1b2e22',textTransform:'uppercase',letterSpacing:'0.05em'}}>Mission</h3>
+            <p style={{margin:0,color:'#3a5444',fontSize:13,lineHeight:1.75}}>{dept.mission}</p>
+            {dept.highlights?.length>0&&<ul style={{margin:'12px 0 0',padding:'0 0 0 15px',display:'flex',flexDirection:'column',gap:5}}>{dept.highlights.map((h,i)=><li key={i} style={{fontSize:12,color:'#4a6a58',lineHeight:1.5}}>{h}</li>)}</ul>}
+          </Card>
+          <Card style={{overflow:'hidden'}}>
+            <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Budget Detail by Line Item</h3></div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Proposed</th></tr></thead>
+              <tbody>
+                {dept.lineItems.map((li,i)=>(
+                  <tr key={li.code} style={{borderBottom:i<dept.lineItems.length-1?'1px solid #eef3f0':'none'}}>
+                    <td style={{...tdStyle,paddingLeft:20}}><span style={{fontSize:10,color:'#aac4b4',marginRight:7}}>{li.code}</span><span style={{fontWeight:500,color:'#2a4a38'}}>{li.name}</span></td>
+                    <td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(li.fy25_actual)}</td>
+                    <td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(li.fy26_approved)}</td>
+                    <td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b2e22'}}>{fmtFull(li.fy27_request)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr style={{background:'#f2f7f4',borderTop:'2px solid #c8ddd4'}}>
+                <td style={{...tdStyle,paddingLeft:20,fontWeight:700}}>Total</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy25_actual)}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy26_approved)}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b3a2a'}}>{fmtFull(dept.fy27_request)}</td>
+              </tr></tfoot>
+            </table>
+          </Card>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:18}}>
+          <Card style={{padding:20}}>
+            <h3 style={{margin:'0 0 3px',fontSize:13,fontWeight:700,color:'#1b2e22'}}>3-Year Comparison</h3>
+            <p style={{margin:'0 0 12px',fontSize:11,color:'#7a9a86'}}>Actual · Approved · Proposed</p>
+            <BarChart labels={['FY2025 Actual','FY2026 Approved','FY2027 Proposed']} datasets={[{label:'Budget',data:[dept.fy25_actual,dept.fy26_approved,dept.fy27_request],backgroundColor:['rgba(45,106,79,0.35)','rgba(45,106,79,0.6)','#2d6a4f'],borderColor:'#2d6a4f',borderWidth:1.5,borderRadius:5}]} showLegend={false} height={190}/>
+          </Card>
+          {dept.phone&&<Card style={{padding:20}}><h3 style={{margin:'0 0 12px',fontSize:13,fontWeight:700,color:'#1b2e22'}}>Contact</h3><div style={{fontSize:12,color:'#3a5444',lineHeight:2}}><div><strong>Head:</strong><br/>{dept.head}</div>{dept.phone&&<div style={{marginTop:8}}><strong>Phone:</strong> {dept.phone}</div>}{dept.email&&<div><strong>Email:</strong> {dept.email}</div>}</div></Card>}
+          {dept.request_note&&<Card style={{padding:20,background:'#fff8e7',border:'1px solid #e8d88a'}}><h3 style={{margin:'0 0 8px',fontSize:11,fontWeight:700,color:'#5a4000',textTransform:'uppercase',letterSpacing:'0.05em'}}>Budget Narrative</h3><p style={{margin:0,fontSize:12,color:'#5a4a10',lineHeight:1.7}}>{dept.request_note}</p></Card>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PUBLIC: Enterprise Funds ──────────────────────────────────────────────────
+function EnterpriseFunds(){
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <h1 style={{margin:'0 0 6px',fontSize:28,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Enterprise Funds</h1>
+      <p style={{margin:'0 0 24px',color:'#5a7a66',fontSize:14}}>Self-supporting utility operations funded by user fees, not property taxes</p>
+      {ENTERPRISE_FUNDS.map(fund=>(
+        <Card key={fund.id} style={{marginBottom:22,overflow:'hidden'}}>
+          <div style={{background:fund.id==='water'?'#1b3a2a':'#2a3a5a',padding:'20px 26px',color:'#fff'}}>
+            <h2 style={{margin:'0 0 3px',fontSize:18,fontWeight:700,fontFamily:"'Source Serif 4',serif"}}>{fund.name}</h2>
+            <p style={{margin:0,color:'rgba(255,255,255,0.6)',fontSize:12}}>{fund.head}</p>
+          </div>
+          <div style={{padding:26}}>
+            <p style={{margin:'0 0 18px',fontSize:13,color:'#3a5444',lineHeight:1.7}}>{fund.mission}</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:22}}>
+              {fund.stats.map(s=><div key={s.label} style={{background:'#f2f7f4',borderRadius:8,padding:'12px 14px'}}><div style={{fontSize:10,color:'#5a7a66',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>{s.label}</div><div style={{fontSize:17,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{s.value}</div></div>)}
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Proposed</th><th style={{...thStyle,textAlign:'right'}}>Change</th></tr></thead>
+              <tbody>{fund.lineItems.map((li,i)=>{const c=pctChg(li.fy26_approved,li.fy27_request);return(<tr key={li.name} style={{borderBottom:i<fund.lineItems.length-1?'1px solid #eef3f0':'none'}}><td style={{...tdStyle,fontWeight:500,color:'#2a4a38'}}>{li.name}</td><td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(li.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(li.fy27_request)}</td><td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:c>5?'#b91c1c':'#5a7a66'}}>{c>0?'+':''}{c.toFixed(1)}%</td></tr>);})}</tbody>
+              <tfoot><tr style={{background:'#f2f7f4',borderTop:'2px solid #c8ddd4'}}><td style={{...tdStyle,fontWeight:700}}>Total</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(fund.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b3a2a'}}>{fmtFull(fund.fy27_request)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#5a7a66'}}>{pctChg(fund.fy26_approved,fund.fy27_request).toFixed(1)}%</td></tr></tfoot>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── PUBLIC: Capital Plan ──────────────────────────────────────────────────────
+function CapitalPlan(){
+  const [yr,setYr]=useState('all');
+  const [dept,setDept]=useState('all');
+  const [stat,setStat]=useState('all');
+  const [search,setSearch]=useState('');
+  const years=['FY2027','FY2028','FY2029','FY2030','FY2031'];
+  const deptIds=[...new Set(CAPITAL_PROJECTS.map(p=>p.department))];
+  const getDeptName=id=>DEPARTMENTS.find(x=>x.id===id)?.shortName||id.toUpperCase();
+  const filtered=useMemo(()=>CAPITAL_PROJECTS.filter(p=>(yr==='all'||p.years.some(y=>y.year===yr))&&(dept==='all'||p.department===dept)&&(stat==='all'||p.status===stat)&&(p.name.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))),[yr,dept,stat,search]);
+  const byYear=years.map(y=>({year:y,total:CAPITAL_PROJECTS.reduce((s,p)=>s+(p.years.find(x=>x.year===y)?.amount||0),0)}));
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1200}}>
+      <h1 style={{margin:'0 0 6px',fontSize:28,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Improvement Plan</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:14}}>FY2027–FY2031 — Major infrastructure, equipment, and facility projects</p>
+      <Card style={{padding:22,marginBottom:20}}>
+        <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>Capital Investment by Fiscal Year</h3>
+        <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>All projects — {fmt(CAPITAL_PROJECTS.reduce((s,p)=>s+p.total,0))} total over 5 years</p>
+        <BarChart labels={byYear.map(b=>b.year)} datasets={[{label:'Capital Investment',data:byYear.map(b=>b.total),backgroundColor:['#2d6a4f','#40916c','#52b788','#74c69d','#b7e4c7'],borderRadius:5,borderWidth:0}]} showLegend={false} height={160}/>
+      </Card>
+      <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects..." style={{flex:1,minWidth:160,padding:'7px 12px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif'}}/>
+        {[{v:yr,set:setYr,opts:[['all','All Years'],...years.map(y=>[y,y])]},{v:dept,set:setDept,opts:[['all','All Depts'],...deptIds.map(d=>[d,getDeptName(d)])]},{v:stat,set:setStat,opts:[['all','All Statuses'],...Object.entries(CAP_STATUS).map(([k,v])=>[k,v.label])]}].map((f,i)=>(
+          <select key={i} value={f.v} onChange={e=>f.set(e.target.value)} style={{padding:'7px 12px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:12,background:'#fff',fontFamily:'Figtree,sans-serif'}}>
+            {f.opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+        ))}
+        <div style={{display:'flex',alignItems:'center',padding:'0 14px',background:'#1b3a2a',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600}}>{filtered.length} projects · {fmt(filtered.reduce((s,p)=>s+p.total,0))}</div>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        {filtered.map(proj=>(
+          <Card key={proj.id} style={{padding:'18px 22px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
+                  <h3 style={{margin:0,fontSize:14,fontWeight:700,color:'#1b2e22'}}>{proj.name}</h3>
+                  <CapBadge status={proj.status}/>
+                </div>
+                <div style={{fontSize:11,color:'#7a9a86'}}>{getDeptName(proj.department)} · {proj.category} · {proj.funding_source}</div>
+              </div>
+              <div style={{textAlign:'right',flexShrink:0}}><div style={{fontSize:18,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{fmtFull(proj.total)}</div><div style={{fontSize:10,color:'#7a9a86'}}>Total Cost</div></div>
+            </div>
+            <p style={{margin:'0 0 12px',fontSize:12,color:'#3a5444',lineHeight:1.65}}>{proj.description}</p>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {proj.years.map(y=><div key={y.year} style={{background:'#f2f7f4',borderRadius:5,padding:'4px 10px',fontSize:11,fontWeight:600}}><span style={{color:'#5a7a66'}}>{y.year}: </span><span style={{color:'#1b2e22'}}>{fmtFull(y.amount)}</span></div>)}
+            </div>
+          </Card>
+        ))}
+        {filtered.length===0&&<div style={{textAlign:'center',padding:'48px',color:'#8aaa96',fontSize:13}}>No projects match your filters.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── INTERNAL: Dept Head Dashboard ─────────────────────────────────────────────
+function DeptDashboard({deptId,onNav}){
+  const dept=DEPARTMENTS.find(d=>d.id===deptId);if(!dept)return null;
+  const totalReq=dept.lineItems.reduce((s,li)=>s+li.fy27_request,0);
+  const chg=pctChg(dept.fy26_approved,totalReq);
+  const s=REQ_STATUS[dept.request_status];
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1000}}>
+      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{dept.shortName} — FY2027 Budget Cycle</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Logged in as: {dept.head}</p>
+      <div style={{background:s.bg,borderRadius:10,padding:'14px 20px',border:`1px solid ${s.color}33`,marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div><div style={{fontWeight:700,fontSize:13,color:'#1b2e22',marginBottom:4}}>Budget Request Status</div><StatusPill status={dept.request_status}/>{dept.tm_note&&<div style={{marginTop:6,fontSize:12,color:'#4a6a58'}}><strong>Town Manager note:</strong> {dept.tm_note}</div>}</div>
+        {dept.request_status!=='approved'&&<button onClick={()=>onNav('dept/budget-request')} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'9px 18px',fontSize:12,fontWeight:600,cursor:'pointer'}}>{dept.request_status==='not_started'||dept.request_status==='draft'?'Start Request →':'Edit Request →'}</button>}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
+        <StatCard label="FY2027 Request" value={fmt(totalReq)} sub="Total submitted"/>
+        <StatCard label="FY2026 Approved" value={fmt(dept.fy26_approved)} sub="Prior year baseline"/>
+        <StatCard label="Year-over-Year" value={`${chg>0?'+':''}${chg.toFixed(1)}%`} sub="Change vs. prior year"/>
+      </div>
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Budget Request Summary</h3>
+          <button onClick={()=>onNav('dept/budget-request')} style={{background:'none',border:'1px solid #c8ddd4',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>Edit →</button>
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th><th style={{...thStyle,textAlign:'right'}}>Change</th></tr></thead>
+          <tbody>
+            {dept.lineItems.map((li,i)=>{const c=pctChg(li.fy26_approved,li.fy27_request);return(<tr key={li.code} style={{borderBottom:i<dept.lineItems.length-1?'1px solid #eef3f0':'none'}}><td style={{...tdStyle,paddingLeft:20}}><span style={{fontSize:10,color:'#aac4b4',marginRight:7}}>{li.code}</span><span style={{fontWeight:500,color:'#2a4a38'}}>{li.name}</span></td><td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(li.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(li.fy27_request)}</td><td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:c>5?'#b91c1c':c>0?'#c2410c':'#15803d'}}>{c>0?'+':''}{c.toFixed(1)}%</td></tr>);})}
+          </tbody>
+          <tfoot><tr style={{background:'#f2f7f4',borderTop:'2px solid #c8ddd4'}}><td style={{...tdStyle,paddingLeft:20,fontWeight:700}}>Total</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b3a2a'}}>{fmtFull(totalReq)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:chg>5?'#b91c1c':'#5a7a66'}}>{chg>0?'+':''}{chg.toFixed(1)}%</td></tr></tfoot>
+        </table>
+      </Card>
+      <Card>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Capital Project Requests</h3><button onClick={()=>onNav('dept/capital-request')} style={{background:'none',border:'1px solid #c8ddd4',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>+ New Request</button></div>
+        <div style={{padding:'12px 20px'}}>
+          {CAPITAL_PROJECTS.filter(p=>p.department===deptId).map(proj=>(
+            <div key={proj.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid #eef3f0'}}>
+              <div><div style={{fontWeight:600,fontSize:12,color:'#1b2e22',marginBottom:2}}>{proj.name}</div><div style={{fontSize:11,color:'#7a9a86'}}>{proj.years.map(y=>`${y.year}: ${fmtFull(y.amount)}`).join(' · ')}</div></div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{fontWeight:700,fontSize:13,color:'#1b2e22'}}>{fmtFull(proj.total)}</div><CapBadge status={proj.status}/></div>
+            </div>
+          ))}
+          {CAPITAL_PROJECTS.filter(p=>p.department===deptId).length===0&&<div style={{color:'#8aaa96',fontSize:12,padding:'10px 0'}}>No capital requests submitted for this department.</div>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── INTERNAL: Budget Request Form ─────────────────────────────────────────────
+function BudgetRequestForm({deptId,onNav}){
+  const dept=DEPARTMENTS.find(d=>d.id===deptId);if(!dept)return null;
+  const [items,setItems]=useState(dept.lineItems.map(li=>({...li})));
+  const [narrative,setNarrative]=useState(dept.request_note||'');
+  const [saved,setSaved]=useState(false);
+  const totalReq=items.reduce((s,li)=>s+(parseInt(li.fy27_request)||0),0);
+  const chg=pctChg(dept.fy26_approved,totalReq);
+  function updateItem(i,val){const u=[...items];u[i]={...u[i],fy27_request:parseInt(val)||0};setItems(u);setSaved(false);}
+  return(
+    <div style={{padding:'32px 36px',maxWidth:900}}>
+      <button onClick={()=>onNav('dept/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to Dashboard</button>
+      <h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>FY2027 Budget Request — {dept.shortName}</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Complete all line items and provide justification before submitting.</p>
+      {saved&&<div style={{background:'#e8f5e9',border:'1px solid #c8e6c9',borderRadius:8,padding:'10px 16px',marginBottom:16,color:'#2e7d32',fontWeight:600,fontSize:12}}>Budget request saved successfully.</div>}
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Detail</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Amounts exceeding 10% over prior year require additional justification.</p></div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right',color:'#1b3a2a'}}>FY2027 Request</th><th style={{...thStyle,textAlign:'right'}}>Chg</th></tr></thead>
+          <tbody>
+            {items.map((li,i)=>{const c=pctChg(li.fy26_approved,li.fy27_request),high=c>10;return(
+              <tr key={li.code} style={{borderBottom:'1px solid #eef3f0',background:high?'#fffdf0':'transparent'}}>
+                <td style={{...tdStyle,paddingLeft:20}}><span style={{fontSize:10,color:'#aac4b4',marginRight:7}}>{li.code}</span><span style={{fontWeight:500,color:'#2a4a38'}}>{li.name}</span>{high&&<span style={{marginLeft:7,fontSize:9,background:'#fff3cd',color:'#856404',padding:'1px 5px',borderRadius:3,fontWeight:700}}>HIGH</span>}</td>
+                <td style={{...tdStyle,textAlign:'right',color:'#8aaa96',fontSize:11}}>{fmtFull(li.fy25_actual)}</td>
+                <td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(li.fy26_approved)}</td>
+                <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={li.fy27_request} onChange={e=>updateItem(i,e.target.value)} style={{width:108,padding:'5px 8px',borderRadius:6,border:`1.5px solid ${high?'#ffc107':'#c8ddd4'}`,fontSize:12,textAlign:'right',fontFamily:'Figtree,sans-serif',fontWeight:600}}/></td>
+                <td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:c>10?'#b91c1c':c>0?'#c2410c':'#15803d'}}>{c>0?'+':''}{c.toFixed(1)}%</td>
+              </tr>
+            );})}
+          </tbody>
+          <tfoot><tr style={{background:'#1b3a2a',color:'#fff'}}><td style={{...tdStyle,paddingLeft:20,fontWeight:700}} colSpan={2}>Total Request</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,fontSize:14}}>{fmtFull(totalReq)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:chg>10?'#ffb3b3':'#c9a227'}}>{chg>0?'+':''}{chg.toFixed(1)}%</td></tr></tfoot>
+        </table>
+      </Card>
+      <Card style={{marginBottom:20}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Budget Narrative / Justification</h3></div>
+        <div style={{padding:20}}><textarea value={narrative} onChange={e=>{setNarrative(e.target.value);setSaved(false);}} rows={5} placeholder="Describe the rationale for your FY2027 budget request, key initiatives, staffing changes, and relevant context..." style={{width:'100%',padding:'10px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',lineHeight:1.6,resize:'vertical',boxSizing:'border-box'}}/></div>
+      </Card>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+        <button onClick={()=>setSaved(true)} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>Save Draft</button>
+        <button onClick={()=>{setSaved(true);setTimeout(()=>onNav('dept/dashboard'),1000);}} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Submit to Town Manager →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── INTERNAL: Capital Request Form ────────────────────────────────────────────
+function CapitalRequestForm({deptId,onNav}){
+  const dept=DEPARTMENTS.find(d=>d.id===deptId);
+  const [form,setForm]=useState({name:'',category:'Equipment',description:'',priority:'medium',funding:'General Fund',fy27:'',fy28:'',fy29:''});
+  const [submitted,setSubmitted]=useState(false);
+  const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const inp={width:'100%',padding:'8px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box'};
+  if(submitted)return(
+    <div style={{padding:'32px 36px',maxWidth:700}}>
+      <div style={{background:'#e8f5e9',borderRadius:12,padding:'40px 32px',textAlign:'center',border:'1px solid #c8e6c9'}}>
+        <div style={{fontSize:36,marginBottom:10,color:'#2d6a4f'}}>✓</div>
+        <h2 style={{margin:'0 0 8px',fontSize:20,fontWeight:700,color:'#1b3a2a',fontFamily:"'Source Serif 4',serif"}}>Capital Request Submitted</h2>
+        <p style={{margin:'0 0 22px',color:'#4a6a58',fontSize:13}}>Your capital project request has been submitted for Town Manager review.</p>
+        <button onClick={()=>onNav('dept/dashboard')} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'9px 22px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Back to Dashboard</button>
+      </div>
+    </div>
+  );
+  return(
+    <div style={{padding:'32px 36px',maxWidth:800}}>
+      <button onClick={()=>onNav('dept/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to Dashboard</button>
+      <h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>New Capital Project Request</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Department: {dept?.name} — FY2027 Capital Improvement Plan</p>
+      <Card>
+        <div style={{padding:26,display:'flex',flexDirection:'column',gap:18}}>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Project Name *</label><input value={form.name} onChange={e=>setF('name',e.target.value)} placeholder="e.g. Ladder Truck Replacement" style={inp}/></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Category</label><select value={form.category} onChange={e=>setF('category',e.target.value)} style={{...inp,background:'#fff'}}>{'Equipment,Infrastructure,Buildings & Facilities,Technology,Parks & Recreation,Planning & Studies'.split(',').map(c=><option key={c}>{c}</option>)}</select></div>
+            <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Priority</label><select value={form.priority} onChange={e=>setF('priority',e.target.value)} style={{...inp,background:'#fff'}}><option value="high">High — Safety / Legal / Compliance</option><option value="medium">Medium — Operational Need</option><option value="low">Low — Desirable Improvement</option></select></div>
+          </div>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Project Description *</label><textarea value={form.description} onChange={e=>setF('description',e.target.value)} rows={4} placeholder="Describe the project scope, current problem being addressed, and expected outcome..." style={{...inp,resize:'vertical',lineHeight:1.6}}/></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Proposed Funding Source</label><select value={form.funding} onChange={e=>setF('funding',e.target.value)} style={{...inp,background:'#fff'}}>{'General Fund,Borrowing,Free Cash / Stabilization,Enterprise Fund,Federal/State Grant,CPA Funds,Borrowing / Federal Aid (80%)'.split(',').map(s=><option key={s}>{s}</option>)}</select></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:'#3a5444',marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.05em'}}>Estimated Cost by Year</label><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>{['fy27','fy28','fy29'].map((yr,i)=><div key={yr}><div style={{fontSize:10,color:'#7a9a86',marginBottom:4,fontWeight:600}}>FY{2027+i}</div><input type="number" value={form[yr]} onChange={e=>setF(yr,e.target.value)} placeholder="$0" style={inp}/></div>)}</div></div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:10,paddingTop:4}}>
+            <button onClick={()=>onNav('dept/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
+            <button onClick={()=>setSubmitted(true)} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Submit Request →</button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Dashboard ────────────────────────────────────────────────────
+function TMDashboard({onNav}){
+  const stats=getSubmissionStats();
+  const totalReq=DEPARTMENTS.reduce((s,d)=>s+d.fy27_request,0);
+  const totalPrior=DEPARTMENTS.reduce((s,d)=>s+d.fy26_approved,0);
+  const catT=getByCategoryTotals();
+  const topDepts=[...DEPARTMENTS].sort((a,b)=>b.fy27_request-a.fy27_request).slice(0,8);
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1200}}>
+      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Town Manager — Budget Dashboard</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>FY2027 Budget Cycle · All Departments</p>
+      <Card style={{padding:'16px 22px',marginBottom:22}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontSize:12,fontWeight:700,color:'#1b2e22'}}>Submission Progress</div><div style={{fontSize:11,color:'#5a7a66'}}>{stats.submitted+stats.under_review+stats.approved} of {DEPARTMENTS.length} departments</div></div>
+        <div style={{background:'#eef3f0',borderRadius:8,height:9,overflow:'hidden'}}><div style={{height:'100%',width:`${((stats.submitted+stats.under_review+stats.approved)/DEPARTMENTS.length)*100}%`,background:'#2d6a4f',borderRadius:8}}/></div>
+        <div style={{display:'flex',gap:18,marginTop:10}}>{[['Not Started',stats.not_started,'#aaa'],['Submitted',stats.submitted,'#2d6a4f'],['Under Review',stats.under_review,'#e67e22'],['Approved',stats.approved,'#16a085']].map(([l,n,c])=><div key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11}}><span style={{width:7,height:7,borderRadius:'50%',background:c}}/><span style={{color:'#5a7a66'}}>{l}:</span><span style={{fontWeight:700,color:'#1b2e22'}}>{n}</span></div>)}</div>
+      </Card>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
+        <StatCard label="Total Requested" value={fmt(totalReq)} sub="All departments FY2027" delta={pctChg(totalPrior,totalReq)} accent/>
+        <StatCard label="Prior Year Total" value={fmt(totalPrior)} sub="FY2026 Approved"/>
+        <StatCard label="Budget Increase" value={fmt(totalReq-totalPrior)} sub="Requested above prior year"/>
+        <StatCard label="Capital FY2027" value={fmt(CAPITAL_PROJECTS.filter(p=>p.years[0]?.year==='FY2027').reduce((s,p)=>s+p.years[0].amount,0))} sub="Year 1 capital investment"/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:18,marginBottom:22}}>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>FY2026 Approved vs. FY2027 Requested</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>Top 8 departments</p>
+          <BarChart labels={topDepts.map(d=>d.shortName)} datasets={[{label:'FY2026 Approved',data:topDepts.map(d=>d.fy26_approved),backgroundColor:'rgba(64,145,108,0.35)',borderColor:'#40916c',borderWidth:1.5,borderRadius:4},{label:'FY2027 Request',data:topDepts.map(d=>d.fy27_request),backgroundColor:'#1b3a2a',borderColor:'#1b3a2a',borderWidth:1.5,borderRadius:4}]} height={220}/>
+        </Card>
+        <Card style={{padding:22}}>
+          <h3 style={{margin:'0 0 3px',fontSize:14,fontWeight:700,color:'#1b2e22'}}>Budget by Category</h3>
+          <p style={{margin:'0 0 14px',fontSize:11,color:'#7a9a86'}}>FY2027 proposed — all departments</p>
+          <DonutChart labels={Object.keys(catT).map(k=>CATEGORIES[k]?.label)} values={Object.values(catT)} colors={Object.keys(catT).map(k=>CATEGORY_COLORS[k])} centerLabel={fmt(totalReq)} centerSub="Total" height={220}/>
+        </Card>
+      </div>
+      <Card>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Department Requests</h3><button onClick={()=>onNav('tm/capital-review')} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:7,padding:'6px 14px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Capital Review →</button></div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Department</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th><th style={{...thStyle,textAlign:'right'}}>Change</th><th style={thStyle}>Status</th><th style={thStyle}>TM Note</th><th style={thStyle}></th></tr></thead>
+          <tbody>
+            {DEPARTMENTS.map((dept,i)=>{const c=pctChg(dept.fy26_approved,dept.fy27_request);return(
+              <tr key={dept.id} style={{borderBottom:i<DEPARTMENTS.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+                <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{dept.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{CATEGORIES[dept.category]?.label}</div></td>
+                <td style={{...tdStyle,textAlign:'right',color:'#6a8c78'}}>{fmtFull(dept.fy26_approved)}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy27_request)}</td>
+                <td style={{...tdStyle,textAlign:'right'}}><span style={{fontSize:11,fontWeight:600,color:c>8?'#b91c1c':c>4?'#c2410c':'#15803d'}}>{c>0?'+':''}{c.toFixed(1)}%</span></td>
+                <td style={tdStyle}><StatusPill status={dept.request_status}/></td>
+                <td style={{...tdStyle,fontSize:11,color:'#5a7a66',maxWidth:160}}>{dept.tm_note?<span style={{fontStyle:'italic'}}>{dept.tm_note.slice(0,55)}{dept.tm_note.length>55?'…':''}</span>:<span style={{color:'#c8ddd4'}}>—</span>}</td>
+                <td style={tdStyle}><button onClick={()=>onNav('tm/department',dept.id)} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Review →</button></td>
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Dept Review ──────────────────────────────────────────────────
+function TMDeptReview({deptId,onNav}){
+  const dept=DEPARTMENTS.find(d=>d.id===deptId)||DEPARTMENTS[0];
+  const [items,setItems]=useState(dept.lineItems.map(li=>({...li,fy27_recommended:li.fy27_recommended??li.fy27_request})));
+  const [note,setNote]=useState(dept.tm_note||'');
+  const [status,setStatus]=useState(dept.request_status);
+  const [saved,setSaved]=useState(false);
+  const totalReq=items.reduce((s,li)=>s+li.fy27_request,0);
+  const totalRec=items.reduce((s,li)=>s+(li.fy27_recommended??li.fy27_request),0);
+  const savings=totalReq-totalRec;
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1000}}>
+      <button onClick={()=>onNav('tm/dashboard')} style={{background:'none',border:'none',color:'#5a7a66',fontSize:12,cursor:'pointer',padding:0,marginBottom:18}}>← Back to TM Dashboard</button>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22}}><div><h1 style={{margin:'0 0 4px',fontSize:24,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{dept.name}</h1><p style={{margin:0,color:'#5a7a66',fontSize:13}}>Budget review — FY2027</p></div><StatusPill status={status}/></div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
+        <StatCard label="FY2026 Approved" value={fmtFull(dept.fy26_approved)} sub="Baseline"/>
+        <StatCard label="Dept Request" value={fmtFull(totalReq)} sub={`+${pctChg(dept.fy26_approved,totalReq).toFixed(1)}% vs prior`}/>
+        <StatCard label="TM Recommendation" value={fmtFull(totalRec)} sub={savings>0?`${fmtFull(savings)} below request`:'Matches request'} accent={savings>0}/>
+        <StatCard label="vs. Prior Year" value={`${pctChg(dept.fy26_approved,totalRec)>0?'+':''}${pctChg(dept.fy26_approved,totalRec).toFixed(1)}%`} sub="Recommended change"/>
+      </div>
+      {saved&&<div style={{background:'#e8f5e9',border:'1px solid #c8e6c9',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#2e7d32',fontWeight:600,fontSize:12}}>Changes saved.</div>}
+      {dept.request_note&&<Card style={{padding:'16px 20px',marginBottom:18,background:'#fffdf5',border:'1px solid #e8d88a'}}><div style={{fontSize:11,fontWeight:700,color:'#5a4000',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:5}}>Department Narrative</div><p style={{margin:0,fontSize:12,color:'#5a4a10',lineHeight:1.7}}>{dept.request_note}</p></Card>}
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Review</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Enter TM recommendation. Leave as-is to accept department request.</p></div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>Dept Request</th><th style={{...thStyle,textAlign:'right',color:'#1b3a2a'}}>TM Recommendation</th><th style={{...thStyle,textAlign:'right'}}>Variance</th></tr></thead>
+          <tbody>
+            {items.map((li,i)=>{const rec=li.fy27_recommended??li.fy27_request,variance=rec-li.fy27_request;return(
+              <tr key={li.code} style={{borderBottom:i<items.length-1?'1px solid #eef3f0':'none',background:variance<0?'#fef9f0':'transparent'}}>
+                <td style={{...tdStyle,paddingLeft:20}}><span style={{fontSize:10,color:'#aac4b4',marginRight:7}}>{li.code}</span><span style={{fontWeight:500}}>{li.name}</span></td>
+                <td style={{...tdStyle,textAlign:'right',color:'#8aaa96'}}>{fmtFull(li.fy26_approved)}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:600}}>{fmtFull(li.fy27_request)}</td>
+                <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={li.fy27_recommended??li.fy27_request} onChange={e=>{const u=[...items];u[i]={...u[i],fy27_recommended:parseInt(e.target.value)||0};setItems(u);setSaved(false);}} style={{width:118,padding:'5px 8px',borderRadius:6,border:'1.5px solid #2d6a4f',fontSize:12,textAlign:'right',fontFamily:'Figtree,sans-serif',fontWeight:600,background:'#f0faf4'}}/></td>
+                <td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:variance<0?'#b91c1c':variance>0?'#15803d':'#aaa'}}>{variance===0?'—':`${variance>0?'+':''}${fmtFull(variance)}`}</td>
+              </tr>
+            );})}
+          </tbody>
+          <tfoot><tr style={{background:'#1b3a2a',color:'#fff'}}><td style={{...tdStyle,paddingLeft:20,fontWeight:700}}>Total</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(totalReq)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,fontSize:14}}>{fmtFull(totalRec)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:savings>0?'#ffd700':'#aaa'}}>{savings>0?`-${fmtFull(savings)}`:savings<0?`+${fmtFull(Math.abs(savings))}`:'—'}</td></tr></tfoot>
+        </table>
+      </Card>
+      <Card style={{marginBottom:22}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Town Manager Notes & Status</h3></div>
+        <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:14}}>
+          <textarea value={note} onChange={e=>{setNote(e.target.value);setSaved(false);}} rows={3} placeholder="Add internal notes, questions for department head, or budget rationale..." style={{width:'100%',padding:'9px 12px',borderRadius:7,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',lineHeight:1.6,resize:'vertical',boxSizing:'border-box'}}/>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <span style={{fontSize:11,fontWeight:700,color:'#3a5444'}}>Set Status:</span>
+            {['under_review','approved'].map(s=><button key={s} onClick={()=>setStatus(s)} style={{padding:'5px 12px',borderRadius:6,border:`2px solid ${status===s?'#2d6a4f':'#c8ddd4'}`,background:status===s?'#e8f5ee':'#fff',fontSize:11,fontWeight:600,color:status===s?'#1b3a2a':'#5a7a66',cursor:'pointer'}}>{REQ_STATUS[s]?.label}</button>)}
+          </div>
+        </div>
+      </Card>
+      <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+        <button onClick={()=>onNav('tm/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Cancel</button>
+        <button onClick={()=>{setSaved(true);setTimeout(()=>onNav('tm/dashboard'),1200);}} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:600,color:'#fff',cursor:'pointer'}}>Save & Return →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Capital & Publish ────────────────────────────────────────────
+function TMCapitalReview(){
+  const [statuses,setStatuses]=useState({});
+  const [notes,setNotes]=useState({});
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Plan Review</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>FY2027–FY2031 — Review and recommend capital projects</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:22}}>
+        <StatCard label="FY2027 Capital" value={fmt(CAPITAL_PROJECTS.filter(p=>p.years[0]?.year==='FY2027').reduce((s,p)=>s+p.years[0].amount,0))} sub="Year 1 total" accent/>
+        <StatCard label="5-Year Total" value={fmt(CAPITAL_PROJECTS.reduce((s,p)=>s+p.total,0))} sub="FY2027–FY2031"/>
+        <StatCard label="Projects" value={CAPITAL_PROJECTS.length} sub={`${CAPITAL_PROJECTS.filter(p=>p.status==='recommended').length} recommended`}/>
+      </div>
+      <Card>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Capital Projects</h3></div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Project</th><th style={thStyle}>Dept</th><th style={{...thStyle,textAlign:'right'}}>Total</th><th style={thStyle}>Years</th><th style={thStyle}>Status</th><th style={thStyle}>TM Note</th></tr></thead>
+          <tbody>
+            {CAPITAL_PROJECTS.map((proj,i)=>{const dept=DEPARTMENTS.find(d=>d.id===proj.department);return(
+              <tr key={proj.id} style={{borderBottom:i<CAPITAL_PROJECTS.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+                <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{proj.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{proj.category} · {proj.funding_source}</div></td>
+                <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{dept?.shortName||proj.department}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(proj.total)}</td>
+                <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{proj.years.map(y=>y.year).join(', ')}</td>
+                <td style={tdStyle}><select value={statuses[proj.id]||proj.status} onChange={e=>setStatuses(p=>({...p,[proj.id]:e.target.value}))} style={{padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}><option value="recommended">Recommended</option><option value="planned">Planned</option><option value="under_review">Under Review</option><option value="deferred">Deferred</option><option value="funded">Funded</option></select></td>
+                <td style={tdStyle}><input value={notes[proj.id]||''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:150,padding:'4px 8px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+function TMPublish({onNav}){
+  const [published,setPublished]=useState(false);
+  const approved=DEPARTMENTS.filter(d=>d.request_status==='approved').length;
+  if(published)return(
+    <div style={{padding:'32px 36px',maxWidth:700}}>
+      <div style={{background:'#e8f5e9',borderRadius:14,padding:'48px 40px',textAlign:'center',border:'1px solid #c8e6c9'}}>
+        <div style={{fontSize:44,marginBottom:14,color:'#2d6a4f'}}>✓</div>
+        <h2 style={{margin:'0 0 8px',fontSize:24,fontWeight:700,color:'#1b3a2a',fontFamily:"'Source Serif 4',serif"}}>FY2027 Budget Published</h2>
+        <p style={{margin:'0 0 24px',color:'#4a6a58',fontSize:14,lineHeight:1.6}}>The FY2027 Town of Sutton Proposed Budget is now live on the public portal.</p>
+        <button onClick={()=>onNav('public/dashboard')} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:8,padding:'11px 26px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Public Portal →</button>
+      </div>
+    </div>
+  );
+  return(
+    <div style={{padding:'32px 36px',maxWidth:760}}>
+      <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Publish Budget</h1>
+      <p style={{margin:'0 0 22px',color:'#5a7a66',fontSize:13}}>Review and publish the FY2027 proposed budget to the public portal</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+        <StatCard label="Depts Approved" value={`${approved} / ${DEPARTMENTS.length}`} sub="Before publishing"/>
+        <StatCard label="Total Budget" value={fmt(DEPARTMENTS.reduce((s,d)=>s+d.fy27_request,0))} sub="FY2027 General Fund"/>
+        <StatCard label="Capital Projects" value={CAPITAL_PROJECTS.length} sub="In 5-year plan"/>
+      </div>
+      {approved<DEPARTMENTS.length-2&&<div style={{background:'#fff3cd',border:'1px solid #ffc107',borderRadius:8,padding:'12px 16px',marginBottom:18,fontSize:12,color:'#856404'}}><strong>Note:</strong> {DEPARTMENTS.length-approved} departments still have pending requests. You may publish now or complete all reviews first.</div>}
+      <Card style={{marginBottom:22}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Publication Checklist</h3></div>
+        <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+          {[['All department requests reviewed',approved>=DEPARTMENTS.length-2],['Capital plan projects finalized',true],['Revenue projections confirmed',true],['Budget narrative reviewed',approved>0],['Enterprise fund budgets approved',true]].map(([l,done])=>(
+            <div key={l} style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:18,height:18,borderRadius:'50%',background:done?'#2d6a4f':'#e8e8e8',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{done&&<span style={{color:'#fff',fontSize:10,fontWeight:700}}>✓</span>}</div><span style={{fontSize:12,color:done?'#1b2e22':'#888',fontWeight:done?600:400}}>{l}</span></div>
+          ))}
+        </div>
+      </Card>
+      <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+        <button onClick={()=>onNav('tm/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'10px 22px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Back</button>
+        <button onClick={()=>setPublished(true)} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'10px 26px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer'}}>Publish to Public Portal →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+function SealMark({size=28}){return<svg width={size} height={size} viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/><circle cx="20" cy="20" r="13" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/><path d="M20 8 L22.5 15.5 L30.5 15.5 L24.5 20.5 L27 28 L20 23 L13 28 L15.5 20.5 L9.5 15.5 L17.5 15.5 Z" fill="oklch(0.72 0.12 82)" opacity="0.9"/></svg>;}
+
+function LoginScreen({onLogin}){
+  const [selDept,setSelDept]=useState('tm');
+  return(
+    <div style={{minHeight:'100vh',background:'oklch(0.22 0.07 155)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{width:'100%',maxWidth:880}}>
+        <div style={{textAlign:'center',marginBottom:44}}>
+          <div style={{display:'inline-flex',alignItems:'center',gap:14,marginBottom:16}}><SealMark size={46}/><div style={{textAlign:'left'}}><div style={{fontSize:34,fontWeight:700,color:'#fff',fontFamily:"'Source Serif 4',serif",lineHeight:1}}>OpenBook</div><div style={{fontSize:12,color:'rgba(255,255,255,0.45)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Town of Sutton, Massachusetts</div></div></div>
+          <p style={{color:'rgba(255,255,255,0.5)',fontSize:14,maxWidth:480,margin:'0 auto',lineHeight:1.65}}>Budget transparency and capital planning portal for residents, staff, and town leadership.</p>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
+          {/* Public */}
+          <div style={{background:'rgba(255,255,255,0.06)',borderRadius:14,border:'1px solid rgba(255,255,255,0.1)',padding:26,display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:26,marginBottom:10}}>📊</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Public Access</div>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,flex:1}}>Explore the operating budget, department breakdowns, and capital plan. No login required.</p>
+            <button onClick={()=>onLogin('public',null)} style={{marginTop:18,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter Public Portal →</button>
+          </div>
+          {/* Dept */}
+          <div style={{background:'rgba(201,162,39,0.08)',borderRadius:14,border:'1px solid rgba(201,162,39,0.22)',padding:26,display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:26,marginBottom:10}}>🏛️</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Department Head</div>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,marginBottom:12}}>Submit FY2027 budget and capital requests, track review status.</p>
+            <label style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Select Your Department</label>
+            <select value={selDept} onChange={e=>setSelDept(e.target.value)} style={{width:'100%',padding:'7px 9px',borderRadius:7,border:'1px solid rgba(201,162,39,0.28)',background:'rgba(0,0,0,0.3)',color:'#fff',fontSize:11,fontFamily:'Figtree,sans-serif',marginBottom:12}}>
+              {DEPARTMENTS.filter(d=>d.id!=='debt'&&d.id!=='benefits').map(d=><option key={d.id} value={d.id} style={{background:'#1b3a2a'}}>{d.name}</option>)}
+            </select>
+            <button onClick={()=>onLogin('dept',selDept)} style={{width:'100%',padding:'10px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer'}}>Enter Department Portal →</button>
+          </div>
+          {/* TM */}
+          <div style={{background:'rgba(255,255,255,0.06)',borderRadius:14,border:'1px solid rgba(255,255,255,0.1)',padding:26,display:'flex',flexDirection:'column'}}>
+            <div style={{fontSize:26,marginBottom:10}}>⚖️</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:5,fontFamily:"'Source Serif 4',serif"}}>Town Manager</div>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.5)',lineHeight:1.6,flex:1}}>Review all department requests, build the recommended budget, and publish to the public portal.</p>
+            <button onClick={()=>onLogin('tm',null)} style={{marginTop:18,width:'100%',padding:'10px',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.18)',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Enter TM Portal →</button>
+          </div>
+        </div>
+        <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)'}}>FY2027 Budget Cycle · Town of Sutton, Massachusetts · Powered by OpenBook</div>
+      </div>
+    </div>
+  );
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
+const NAV={
+  public:[{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/enterprise',label:'Enterprise Funds'},{id:'public/capital',label:'Capital Plan'}],
+  dept:[{section:'My Department'},{id:'dept/dashboard',label:'My Dashboard'},{id:'dept/budget-request',label:'FY2027 Budget Request'},{id:'dept/capital-request',label:'Capital Request'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/capital',label:'Capital Plan'}],
+  tm:[{section:'Town Manager'},{id:'tm/dashboard',label:'TM Dashboard'},{id:'tm/capital-review',label:'Capital Review'},{id:'tm/publish',label:'Publish Budget'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/capital',label:'Capital Plan'}]
+};
+
+function Sidebar({role,deptId,view,onNav,onSwitch}){
+  const dept=deptId?DEPARTMENTS.find(d=>d.id===deptId):null;
+  const roleLabel=role==='tm'?'Town Manager':role==='dept'?dept?.shortName||'Department':'Public Access';
+  const roleSub=role==='tm'?'Andrew Dowd':role==='dept'?dept?.head?.split(',')[0]:'Resident / Stakeholder';
+  const items=NAV[role]||NAV.public;
+  return(
+    <div style={{width:236,flexShrink:0,background:'oklch(0.22 0.07 155)',display:'flex',flexDirection:'column',height:'100vh',position:'sticky',top:0}}>
+      <div style={{padding:'18px 16px 14px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <SealMark size={30}/>
+          <div><div style={{fontSize:14,fontWeight:700,color:'#fff',fontFamily:"'Source Serif 4',serif",lineHeight:1.1}}>OpenBook</div><div style={{fontSize:9,color:'rgba(255,255,255,0.38)',letterSpacing:'0.07em',textTransform:'uppercase'}}>Town of Sutton, MA</div></div>
+        </div>
+      </div>
+      <div style={{padding:'10px 14px',background:'rgba(0,0,0,0.14)',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+        <div style={{fontSize:9,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:3}}>Signed in as</div>
+        <div style={{fontSize:11,fontWeight:700,color:'#fff'}}>{roleLabel}</div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>{roleSub}</div>
+      </div>
+      <nav style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+        {items.map((item,i)=>{
+          if(item.section)return<div key={`s${i}`} style={{padding:'12px 16px 4px',fontSize:9,fontWeight:700,color:'rgba(255,255,255,0.3)',textTransform:'uppercase',letterSpacing:'0.08em'}}>{item.section}</div>;
+          const active=view===item.id||(item.id==='tm/dashboard'&&view.startsWith('tm/department'));
+          return<button key={item.id} onClick={()=>onNav(item.id)} style={{width:'100%',display:'flex',alignItems:'center',padding:'8px 16px',background:active?'rgba(201,162,39,0.14)':'transparent',border:'none',borderLeft:`3px solid ${active?'oklch(0.72 0.12 82)':'transparent'}`,cursor:'pointer',textAlign:'left'}} onMouseEnter={e=>{if(!active)e.currentTarget.style.background='rgba(255,255,255,0.05)';}} onMouseLeave={e=>{if(!active)e.currentTarget.style.background='transparent';}}><span style={{fontSize:12,color:active?'oklch(0.82 0.12 82)':'rgba(255,255,255,0.68)',fontWeight:active?700:500}}>{item.label}</span></button>;
+        })}
+      </nav>
+      <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',padding:12}}>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginBottom:7}}>FY2027 Budget Cycle</div>
+        <button onClick={onSwitch} style={{width:'100%',padding:'7px 12px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.6)',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>Switch Role / Portal →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ROOT ──────────────────────────────────────────────────────────────────
+function App(){
+  const saved=(()=>{try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}})();
+  const [role,setRole]=useState(saved?.role||null);
+  const [deptId,setDeptId]=useState(saved?.deptId||null);
+  const [view,setView]=useState(saved?.view||'public/dashboard');
+  const [viewParam,setViewParam]=useState(saved?.viewParam||null);
+  const [tweaks,setTweaks]=useState(false);
+
+  useEffect(()=>{try{localStorage.setItem('openbook_state',JSON.stringify({role,deptId,view,viewParam}));}catch{};},[role,deptId,view,viewParam]);
+  useEffect(()=>{
+    window.addEventListener('message',e=>{if(e.data?.type==='__activate_edit_mode')setTweaks(true);if(e.data?.type==='__deactivate_edit_mode')setTweaks(false);});
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+  },[]);
+
+  function login(r,d){setRole(r);setDeptId(d);setView(r==='public'?'public/dashboard':r==='dept'?'dept/dashboard':'tm/dashboard');setViewParam(null);}
+  function nav(v,p=null){setView(v);setViewParam(p);}
+
+  if(!role)return<LoginScreen onLogin={login}/>;
+
+  function renderView(){
+    switch(view){
+      case'public/dashboard':return<PublicDashboard onNav={nav}/>;
+      case'public/departments':return<DepartmentList onNav={nav}/>;
+      case'public/department':return<DepartmentDetail deptId={viewParam} onNav={nav}/>;
+      case'public/enterprise':return<EnterpriseFunds/>;
+      case'public/capital':return<CapitalPlan/>;
+      case'dept/dashboard':return<DeptDashboard deptId={deptId} onNav={nav}/>;
+      case'dept/budget-request':return<BudgetRequestForm deptId={deptId} onNav={nav}/>;
+      case'dept/capital-request':return<CapitalRequestForm deptId={deptId} onNav={nav}/>;
+      case'tm/dashboard':return<TMDashboard onNav={nav}/>;
+      case'tm/capital-review':return<TMCapitalReview/>;
+      case'tm/publish':return<TMPublish onNav={nav}/>;
+      default:if(view.startsWith('tm/department'))return<TMDeptReview deptId={viewParam} onNav={nav}/>;return<PublicDashboard onNav={nav}/>;
+    }
+  }
+
+  const TWEAK_DEFAULTS=/*EDITMODE-BEGIN*/{"accentColor":"oklch(0.72 0.12 82)","sidebarColor":"oklch(0.22 0.07 155)","fontScale":1}/*EDITMODE-END*/;
+
+  return(
+    <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
+      <Sidebar role={role} deptId={deptId} view={view} onNav={nav} onSwitch={()=>{setRole(null);setDeptId(null);}}/>
+      <main style={{flex:1,overflowY:'auto',background:'oklch(0.97 0.01 155)'}}>{renderView()}</main>
+      {tweaks&&(
+        <div style={{position:'fixed',bottom:20,right:20,background:'#fff',border:'1px solid #dde8e2',borderRadius:12,boxShadow:'0 4px 20px rgba(0,0,0,0.12)',padding:'16px 18px',width:220,zIndex:9999}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#1b2e22',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.06em'}}>Tweaks</div>
+          <div style={{fontSize:11,color:'#5a7a66',marginBottom:6}}>Sidebar Color</div>
+          <div style={{display:'flex',gap:7,marginBottom:12}}>
+            {['oklch(0.22 0.07 155)','oklch(0.18 0.05 240)','oklch(0.20 0.04 30)'].map(c=><div key={c} onClick={()=>window.parent.postMessage({type:'__edit_mode_set_keys',edits:{sidebarColor:c}},'*')} style={{width:26,height:26,borderRadius:5,background:c,cursor:'pointer',border:'2px solid rgba(0,0,0,0.1)'}}/>)}
+          </div>
+          <div style={{fontSize:11,color:'#5a7a66',marginBottom:6}}>Accent Color</div>
+          <div style={{display:'flex',gap:7}}>
+            {['oklch(0.72 0.12 82)','oklch(0.65 0.12 145)','oklch(0.68 0.12 30)'].map(c=><div key={c} onClick={()=>window.parent.postMessage({type:'__edit_mode_set_keys',edits:{accentColor:c}},'*')} style={{width:26,height:26,borderRadius:5,background:c,cursor:'pointer',border:'2px solid rgba(0,0,0,0.1)'}}/>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
