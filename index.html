@@ -1406,7 +1406,7 @@ function AuthForm({onSuccess}){
     const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
     if(authErr){setError(authErr.message);setLoading(false);return;}
     const{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-    if(profErr||!profile){setError('Account found but no role assigned. Contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
+    if(profErr||!profile){setError('Account found but no profile set up. Ask your administrator to run the role-assignment SQL for your email in the Supabase SQL Editor.');await _supa.auth.signOut();setLoading(false);return;}
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
   async function handleForgotPassword(e){

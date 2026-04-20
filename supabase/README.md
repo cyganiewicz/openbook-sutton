@@ -73,15 +73,19 @@ Then, in the **SQL Editor**, assign their role:
 
 ```sql
 -- For a Town Manager account:
-UPDATE profiles
-SET role = 'town_manager', display_name = 'Andrew Dowd'
-WHERE id = (SELECT id FROM auth.users WHERE email = 'manager@suttonma.org');
+INSERT INTO profiles (id, role, display_name)
+SELECT id, 'town_manager', 'Andrew Dowd'
+FROM auth.users WHERE email = 'manager@suttonma.org'
+ON CONFLICT (id) DO UPDATE SET role = 'town_manager', display_name = 'Andrew Dowd';
 
 -- For a Department Head (e.g. Fire):
-UPDATE profiles
-SET role = 'dept_head', dept_id = 'fire', display_name = 'Chief Brennan'
-WHERE id = (SELECT id FROM auth.users WHERE email = 'fire@suttonma.org');
+INSERT INTO profiles (id, role, dept_id, display_name)
+SELECT id, 'dept_head', 'fire', 'Chief Brennan'
+FROM auth.users WHERE email = 'fire@suttonma.org'
+ON CONFLICT (id) DO UPDATE SET role = 'dept_head', dept_id = 'fire', display_name = 'Chief Brennan';
 ```
+
+> **Note:** Using `INSERT … ON CONFLICT` (upsert) ensures this works whether or not the auto-create trigger already created a profile row for the account. A plain `UPDATE` will silently do nothing if the profile row does not yet exist, which causes the "no profile found" login error.
 
 Valid `dept_id` values: `tm`, `treasurer`, `accounting`, `assessing`, `clerk`,
 `inspectional`, `health`, `communications`, `library`, `hr`, `planning`,
