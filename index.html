@@ -1406,7 +1406,7 @@ function AuthForm({onSuccess}){
     const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
     if(authErr){setError(authErr.message);setLoading(false);return;}
     const{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-    if(profErr||!profile){setError('Account found but no profile set up. Ask your administrator to run the role-assignment SQL for your email in the Supabase SQL Editor.');await _supa.auth.signOut();setLoading(false);return;}
+    if(profErr||!profile){setError(`Account found but no profile row exists. In the Supabase SQL Editor, run:\n\nINSERT INTO profiles (id, display_name, email, role)\nSELECT id, '', '${email}', 'town_manager'\nFROM auth.users WHERE email = '${email}';\n\n(Change 'town_manager' to 'dept_head' and add dept_id if needed.)`);await _supa.auth.signOut();setLoading(false);return;}
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
   async function handleForgotPassword(e){
@@ -1423,7 +1423,7 @@ function AuthForm({onSuccess}){
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@suttonma.org" style={inp} required/>
       <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:4,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Password</div>
       <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={inp}/>
-      {error&&<div style={{fontSize:11,color:'#ffb3b3',marginBottom:8,lineHeight:1.4}}>{error}</div>}
+      {error&&<div style={{fontSize:11,color:'#ffb3b3',marginBottom:8,lineHeight:1.6,whiteSpace:'pre-wrap',fontFamily:'monospace'}}>{error}</div>}
       {resetSent&&<div style={{fontSize:11,color:'#9effc9',marginBottom:8,lineHeight:1.4}}>Password reset email sent — check your inbox.</div>}
       <button type="submit" disabled={loading} style={{marginTop:4,width:'100%',padding:'9px',background:'oklch(0.72 0.12 82)',border:'none',borderRadius:8,color:'#1b2000',fontSize:12,fontWeight:700,cursor:'pointer',opacity:loading?0.6:1}}>{loading?'Signing in…':'Sign In →'}</button>
       <button type="button" onClick={handleForgotPassword} disabled={resetting} style={{marginTop:8,background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:11,cursor:'pointer',textAlign:'center',padding:0,fontFamily:'Figtree,sans-serif'}}>{resetting?'Sending…':'Forgot password?'}</button>
