@@ -1093,8 +1093,10 @@ function Sidebar({role,deptId,view,onNav,onSwitch}){
 }
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
+function getSavedState(){try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}}
+
 function App(){
-  const saved=(()=>{try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}})();
+  const saved=getSavedState();
   const [role,setRole]=useState(null);
   const [deptId,setDeptId]=useState(null);
   const [view,setView]=useState(saved?.view||'public/dashboard');
@@ -1108,7 +1110,7 @@ function App(){
   // On mount: restore session (live mode) or localStorage role (demo mode)
   useEffect(()=>{
     if(DEMO_MODE){
-      const s=(()=>{try{return JSON.parse(localStorage.getItem('openbook_state')||'null');}catch{return null;}})();
+      const s=getSavedState();
       setRole(s?.role||null);setDeptId(s?.deptId||null);
       return;
     }
@@ -1133,7 +1135,7 @@ function App(){
 
   // Re-fetch data when refreshData is triggered (live mode only)
   useEffect(()=>{
-    if(!DEMO_MODE&&_supa&&tick>0){loadAllData().then(()=>setTick(t=>t));}
+    if(!DEMO_MODE&&_supa&&tick>0){loadAllData();}
   },[tick]);
 
   useEffect(()=>{try{localStorage.setItem('openbook_state',JSON.stringify({role,deptId,view,viewParam}));}catch{};},[role,deptId,view,viewParam]);
