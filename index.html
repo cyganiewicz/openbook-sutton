@@ -1405,16 +1405,8 @@ function AuthForm({onSuccess}){
     e.preventDefault();setLoading(true);setError('');
     const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
     if(authErr){setError(authErr.message);setLoading(false);return;}
-    let{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-    if(profErr||!profile){
-      const{data:newProfile,error:insertErr}=await _supa.from('profiles').insert({id:data.user.id,display_name:'',role:'dept_head'}).select('*').single();
-      if(insertErr||!newProfile){
-        // Insert may have failed because the profile already exists (e.g. duplicate key) — try fetching again
-        const{data:existingProfile}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-        if(!existingProfile){setError('Account found but profile could not be created. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
-        profile=existingProfile;
-      }else{profile=newProfile;}
-    }
+    const{data:profile,error:profErr}=await _supa.rpc('get_or_create_profile');
+    if(profErr||!profile){setError('Account found but profile could not be loaded. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
   async function handleForgotPassword(e){

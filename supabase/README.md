@@ -147,28 +147,51 @@ This is useful for testing the UI before Supabase is configured.
 
 ---
 
-## Troubleshooting: "Account found but profile could not be created"
+## Troubleshooting: "Account found but profile could not be loaded"
 
-This error means the user authenticated successfully but no `profiles` row exists for them, and the app was unable to create one.
+This error means the user authenticated successfully but no `profiles` row exists for them and the app was unable to create or read one.
 
-**Most common cause:** The user account was created in Supabase Auth *before* the schema (including the `on_auth_user_created` trigger and the INSERT RLS policy) was applied.
+**Root cause:** The login flow calls a `get_or_create_profile()` PostgreSQL function (added in `schema.sql`).  If that function does not yet exist in your Supabase database — for example because the schema was not re-applied after the last update — the RPC call fails.
 
-**Fix — run this in the SQL Editor:**
+**Fix — run the full `schema.sql` in the SQL Editor**, or at minimum apply just the new function block:
 
 ```sql
--- Re-apply the INSERT policy (safe to run even if it already exists)
-DO $$
+-- Create (or replace) the get-or-create helper
+CREATE OR REPLACE FUNCTION public.get_or_create_profile()
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_profile public.profiles%ROWTYPE;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE tablename = 'profiles' AND policyname = 'Users insert own profile'
-  ) THEN
-    EXECUTE 'CREATE POLICY "Users insert own profile"
-      ON profiles FOR INSERT WITH CHECK (auth.uid() = id)';
-  END IF;
-END$$;
+  SELECT * INTO v_profile FROM public.profiles WHERE id = auth.uid();
+  IF NOT FOUND THEN
+    INSERT INTO public.profiles (id, role, display_name)
+    VALUES (auth.uid(), 'dept_head', '')
+    ON CONFLICT (id) DO NOTHING
+    RETURNING * INTO v_profile;
 
--- Create missing profile rows for any existing auth users
+    -- If INSERT did nothing (concurrent insert), fetch the existing row
+    IF NOT FOUND THEN
+      SELECT * INTO v_profile FROM public.profiles WHERE id = auth.uid();
+    END IF;
+  END IF;
+  RETURN v_profile;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_or_create_profile() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_or_create_profile() TO authenticated;
+```
+
+Because the function is `SECURITY DEFINER` it bypasses RLS and works regardless of whether the INSERT/SELECT policies exist for the `profiles` table.
+
+After applying the function, also create any missing profile rows and assign roles:
+
+```sql
+-- Backfill profiles for any accounts that were created before the trigger existed
 INSERT INTO profiles (id, role, display_name)
 SELECT id, 'dept_head', ''
 FROM auth.users
