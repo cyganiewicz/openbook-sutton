@@ -1405,13 +1405,18 @@ function AuthForm({onSuccess}){
     e.preventDefault();setLoading(true);setError('');
     const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
     if(authErr){setError(authErr.message);setLoading(false);return;}
-    let{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-    if(profErr||!profile){
-      const{data:newProfile,error:insertErr}=await _supa.from('profiles').insert({id:data.user.id,display_name:'',role:'town_manager'}).select('*').single();
-      if(insertErr||!newProfile){
-        // Insert may have failed because the profile already exists (e.g. duplicate key) — try fetching again
-        const{data:existingProfile}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-        if(!existingProfile){setError('Account found but profile could not be created. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
+    let{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).maybeSingle();
+    if(!profile){
+      // Profile missing — upsert a default one (ignoreDuplicates handles the case where it already exists but RLS blocked the read above)
+      const{data:newProfile,error:insertErr}=await _supa.from('profiles').upsert({id:data.user.id,display_name:'',role:'town_manager'},{onConflict:'id',ignoreDuplicates:true}).select('*').maybeSingle();
+      if(!newProfile){
+        // Upsert returned no row — profile may already exist but RLS is blocking reads; try one more fetch
+        const{data:existingProfile,error:retryErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).maybeSingle();
+        if(!existingProfile){
+          const detail=insertErr?.message||retryErr?.message||profErr?.message||'unknown error';
+          setError(`Account found but profile could not be loaded (${detail}). Check that the Supabase "profiles" table has RLS policies allowing authenticated users to SELECT and INSERT their own row (auth.uid() = id).`);
+          await _supa.auth.signOut();setLoading(false);return;
+        }
         profile=existingProfile;
       }else{profile=newProfile;}
     }
