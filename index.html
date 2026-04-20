@@ -1408,8 +1408,8 @@ function AuthForm({onSuccess}){
     let{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
     if(profErr||!profile){
       const{data:newProfile,error:insertErr}=await _supa.from('profiles').insert({id:data.user.id,display_name:'',role:'town_manager'}).select('*').single();
-      if(insertErr||!newProfile){setError('Account found but profile could not be created. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
-      profile=newProfile;
+      if(!insertErr&&newProfile){profile=newProfile;}
+      else{const{data:retryProfile}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();if(retryProfile){profile=retryProfile;}else{setError('Account found but profile could not be created. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}}
     }
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
