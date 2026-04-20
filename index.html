@@ -1405,8 +1405,12 @@ function AuthForm({onSuccess}){
     e.preventDefault();setLoading(true);setError('');
     const{data,error:authErr}=await _supa.auth.signInWithPassword({email,password});
     if(authErr){setError(authErr.message);setLoading(false);return;}
-    const{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
-    if(profErr||!profile){setError(`Account found but no profile row exists. In the Supabase SQL Editor, run:\n\nINSERT INTO profiles (id, display_name, email, role)\nSELECT id, '', '${email}', 'town_manager'\nFROM auth.users WHERE email = '${email}';\n\n(Change 'town_manager' to 'dept_head' and add dept_id if needed.)`);await _supa.auth.signOut();setLoading(false);return;}
+    let{data:profile,error:profErr}=await _supa.from('profiles').select('*').eq('id',data.user.id).single();
+    if(profErr||!profile){
+      const{data:newProfile,error:insertErr}=await _supa.from('profiles').insert({id:data.user.id,display_name:'',email,role:'town_manager'}).select('*').single();
+      if(insertErr||!newProfile){setError('Account found but profile could not be created. Please contact your administrator.');await _supa.auth.signOut();setLoading(false);return;}
+      profile=newProfile;
+    }
     onSuccess(profile.role==='town_manager'?'tm':'dept',profile.dept_id||null);
   }
   async function handleForgotPassword(e){
