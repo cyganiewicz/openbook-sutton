@@ -178,7 +178,7 @@ let CAPITAL_PROJECTS=[
   {id:"cap015",name:"Senior Center Roof Replacement",department:"senior",description:"Full replacement of original flat roof at the Senior Center, including insulation upgrade and improved drainage. Current roof is 22 years old.",category:"Buildings & Facilities",priority:"medium",funding_source:"General Fund",status:"planned",total:145000,years:[{year:"FY2028",amount:145000}]}
 ];
 
-const REVENUE={fy27:[{source:"Property Tax Levy",amount:15848000,percent:70.9},{source:"State Aid",amount:4235000,percent:18.9},{source:"Local Receipts",amount:1572000,percent:7.0},{source:"Free Cash / Available Funds",amount:700000,percent:3.1}]};
+let REVENUE={fy27:[{source:"Property Tax Levy",amount:15848000,percent:70.9},{source:"State Aid",amount:4235000,percent:18.9},{source:"Local Receipts",amount:1572000,percent:7.0},{source:"Free Cash / Available Funds",amount:700000,percent:3.1}]};
 const BUDGET_HISTORY=[{year:"FY2023",amount:19850000},{year:"FY2024",amount:20412000},{year:"FY2025",amount:20856000},{year:"FY2026",amount:21041000},{year:"FY2027",amount:22355000,proposed:true}];
 
 function fmt(n){if(n>=1000000)return`$${(n/1000000).toFixed(2)}M`;if(n>=1000)return`$${(n/1000).toFixed(0)}K`;return`$${n.toLocaleString()}`;}
@@ -190,18 +190,24 @@ function getSubmissionStats(){const c={not_started:0,submitted:0,under_review:0,
 async function loadAllData(){
   if(!_supa)return;
   try{
-    const[dR,lR,cR,eR]=await Promise.all([
+    const[dR,lR,cR,eR,rR]=await Promise.all([
       _supa.from('departments').select('*'),
       _supa.from('line_items').select('*').order('dept_id').order('sort_order'),
       _supa.from('capital_projects').select('*'),
       _supa.from('enterprise_funds').select('*'),
+      _supa.from('revenues').select('*').order('fiscal_year').order('sort_order'),
     ]);
     if(dR.error||lR.error||cR.error||eR.error){console.error('Supabase load error',dR.error||lR.error||cR.error||eR.error);return;}
     const byDept={};
     (lR.data||[]).forEach(li=>{if(!byDept[li.dept_id])byDept[li.dept_id]=[];byDept[li.dept_id].push({code:li.code,name:li.name,fy25_actual:li.fy25_actual||0,fy26_approved:li.fy26_approved||0,fy27_request:li.fy27_request||0,fy27_recommended:li.fy27_recommended,_db_id:li.id});});
     DEPARTMENTS=(dR.data||[]).map(d=>({id:d.id,name:d.name,shortName:d.short_name,category:d.category,head:d.head||'',phone:d.phone||'',email:d.email||'',mission:d.mission||'',highlights:d.highlights||[],fy25_actual:d.fy25_actual||0,fy26_approved:d.fy26_approved||0,fy27_request:d.fy27_request||0,fy27_recommended:d.fy27_recommended,fy27_approved:d.fy27_approved,request_status:d.request_status||'not_started',request_note:d.request_note||'',tm_note:d.tm_note,lineItems:byDept[d.id]||[]}));
-    CAPITAL_PROJECTS=(cR.data||[]).map(p=>({id:p.id,name:p.name,department:p.department,description:p.description||'',category:p.category||'',priority:p.priority||'medium',funding_source:p.funding_source||'',status:p.status||'under_review',total:p.total||0,years:p.years||[],tm_note:p.tm_note}));
+    CAPITAL_PROJECTS=(cR.data||[]).map(p=>({id:p.id,name:p.name,department:p.department,description:p.description||'',category:p.category||'',priority:p.priority||'medium',funding_source:p.funding_source||'',status:p.status||'under_review',total:p.total||0,years:p.years||[],tm_note:p.tm_note,fy27_final:p.fy27_final,photo_url:p.photo_url||''}));
     ENTERPRISE_FUNDS=(eR.data||[]).map(f=>({id:f.id,name:f.name,shortName:f.short_name,head:f.head,mission:f.mission||'',stats:f.stats||[],fy25_actual:f.fy25_actual||0,fy26_approved:f.fy26_approved||0,fy27_request:f.fy27_request||0,lineItems:f.line_items||[]}));
+    if(!rR.error&&rR.data&&rR.data.length>0){
+      const byYear={};
+      rR.data.forEach(r=>{const y=r.fiscal_year;if(!byYear[y])byYear[y]=[];byYear[y].push({id:r.id,source:r.source,amount:r.amount,percent:r.percent||0});});
+      REVENUE=byYear;
+    }
   }catch(e){console.error('loadAllData failed',e);}
 }
 </script>
@@ -498,12 +504,16 @@ function CapitalPlan(){
   const [yr,setYr]=useState('all');
   const [dept,setDept]=useState('all');
   const [stat,setStat]=useState('all');
+  const [funding,setFunding]=useState('all');
   const [search,setSearch]=useState('');
+  const [expanded,setExpanded]=useState({});
   const years=['FY2027','FY2028','FY2029','FY2030','FY2031'];
   const deptIds=[...new Set(CAPITAL_PROJECTS.map(p=>p.department))];
+  const fundingSources=[...new Set(CAPITAL_PROJECTS.map(p=>p.funding_source).filter(Boolean))].sort();
   const getDeptName=id=>DEPARTMENTS.find(x=>x.id===id)?.shortName||id.toUpperCase();
-  const filtered=useMemo(()=>CAPITAL_PROJECTS.filter(p=>(yr==='all'||p.years.some(y=>y.year===yr))&&(dept==='all'||p.department===dept)&&(stat==='all'||p.status===stat)&&(p.name.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))),[yr,dept,stat,search]);
+  const filtered=useMemo(()=>CAPITAL_PROJECTS.filter(p=>(yr==='all'||p.years.some(y=>y.year===yr))&&(dept==='all'||p.department===dept)&&(stat==='all'||p.status===stat)&&(funding==='all'||p.funding_source===funding)&&(p.name.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))),[yr,dept,stat,funding,search]);
   const byYear=years.map(y=>({year:y,total:CAPITAL_PROJECTS.reduce((s,p)=>s+(p.years.find(x=>x.year===y)?.amount||0),0)}));
+  const toggleExpand=id=>setExpanded(prev=>({...prev,[id]:!prev[id]}));
   return(
     <div style={{padding:'32px 36px',maxWidth:1200}}>
       <h1 style={{margin:'0 0 6px',fontSize:28,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Improvement Plan</h1>
@@ -515,7 +525,7 @@ function CapitalPlan(){
       </Card>
       <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects..." style={{flex:1,minWidth:160,padding:'7px 12px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif'}}/>
-        {[{v:yr,set:setYr,opts:[['all','All Years'],...years.map(y=>[y,y])]},{v:dept,set:setDept,opts:[['all','All Depts'],...deptIds.map(d=>[d,getDeptName(d)])]},{v:stat,set:setStat,opts:[['all','All Statuses'],...Object.entries(CAP_STATUS).map(([k,v])=>[k,v.label])]}].map((f,i)=>(
+        {[{v:yr,set:setYr,opts:[['all','All Years'],...years.map(y=>[y,y])]},{v:dept,set:setDept,opts:[['all','All Depts'],...deptIds.map(d=>[d,getDeptName(d)])]},{v:stat,set:setStat,opts:[['all','All Statuses'],...Object.entries(CAP_STATUS).map(([k,v])=>[k,v.label])]},{v:funding,set:setFunding,opts:[['all','All Funding Sources'],...fundingSources.map(f=>[f,f])]}].map((f,i)=>(
           <select key={i} value={f.v} onChange={e=>f.set(e.target.value)} style={{padding:'7px 12px',borderRadius:7,border:'1px solid #c8ddd4',fontSize:12,background:'#fff',fontFamily:'Figtree,sans-serif'}}>
             {f.opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
           </select>
@@ -523,24 +533,42 @@ function CapitalPlan(){
         <div style={{display:'flex',alignItems:'center',padding:'0 14px',background:'#1b3a2a',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600}}>{filtered.length} projects · {fmt(filtered.reduce((s,p)=>s+p.total,0))}</div>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        {filtered.map(proj=>(
-          <Card key={proj.id} style={{padding:'18px 22px'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,marginBottom:8}}>
-              <div style={{flex:1}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
-                  <h3 style={{margin:0,fontSize:14,fontWeight:700,color:'#1b2e22'}}>{proj.name}</h3>
-                  <CapBadge status={proj.status}/>
+        {filtered.map(proj=>{
+          const isOpen=!!expanded[proj.id];
+          return(
+            <Card key={proj.id} style={{padding:'18px 22px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,marginBottom:isOpen?14:0}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
+                    <h3 style={{margin:0,fontSize:14,fontWeight:700,color:'#1b2e22'}}>{proj.name}</h3>
+                    <CapBadge status={proj.status}/>
+                  </div>
+                  <div style={{fontSize:11,color:'#7a9a86'}}>{getDeptName(proj.department)} · {proj.category} · <span style={{fontWeight:600,color:'#4a7a60'}}>{proj.funding_source}</span></div>
                 </div>
-                <div style={{fontSize:11,color:'#7a9a86'}}>{getDeptName(proj.department)} · {proj.category} · {proj.funding_source}</div>
+                <div style={{display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+                  <div style={{textAlign:'right'}}><div style={{fontSize:18,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{fmtFull(proj.total)}</div><div style={{fontSize:10,color:'#7a9a86'}}>Total Cost</div></div>
+                  <button onClick={()=>toggleExpand(proj.id)} style={{background:'#f2f7f4',border:'1px solid #c8ddd4',borderRadius:6,padding:'5px 10px',fontSize:11,fontWeight:600,color:'#2d6a4f',cursor:'pointer',flexShrink:0}}>{isOpen?'▲ Hide':'▼ Details'}</button>
+                </div>
               </div>
-              <div style={{textAlign:'right',flexShrink:0}}><div style={{fontSize:18,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>{fmtFull(proj.total)}</div><div style={{fontSize:10,color:'#7a9a86'}}>Total Cost</div></div>
-            </div>
-            <p style={{margin:'0 0 12px',fontSize:12,color:'#3a5444',lineHeight:1.65}}>{proj.description}</p>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {proj.years.map(y=><div key={y.year} style={{background:'#f2f7f4',borderRadius:5,padding:'4px 10px',fontSize:11,fontWeight:600}}><span style={{color:'#5a7a66'}}>{y.year}: </span><span style={{color:'#1b2e22'}}>{fmtFull(y.amount)}</span></div>)}
-            </div>
-          </Card>
-        ))}
+              {isOpen&&(
+                <div>
+                  <p style={{margin:'0 0 12px',fontSize:13,color:'#3a5444',lineHeight:1.65}}>{proj.description}</p>
+                  {proj.photo_url&&<img src={proj.photo_url} alt={proj.name} style={{width:'100%',maxHeight:220,objectFit:'cover',borderRadius:8,marginBottom:12}}/>}
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
+                    {proj.years.map(y=><div key={y.year} style={{background:'#f2f7f4',borderRadius:5,padding:'4px 10px',fontSize:11,fontWeight:600}}><span style={{color:'#5a7a66'}}>{y.year}: </span><span style={{color:'#1b2e22'}}>{fmtFull(y.amount)}</span></div>)}
+                    {proj.fy27_final!=null&&<div style={{background:'#e8f5ee',borderRadius:5,padding:'4px 10px',fontSize:11,fontWeight:700,color:'#1b3a2a'}}>Approved FY2027: {fmtFull(proj.fy27_final)}</div>}
+                  </div>
+                  <div style={{fontSize:11,color:'#7a9a86'}}>Priority: <span style={{fontWeight:600,color:'#1b2e22',textTransform:'capitalize'}}>{proj.priority}</span> · Funding Source: <span style={{fontWeight:600,color:'#4a7a60'}}>{proj.funding_source}</span></div>
+                </div>
+              )}
+              {!isOpen&&(
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
+                  {proj.years.map(y=><div key={y.year} style={{background:'#f2f7f4',borderRadius:5,padding:'4px 10px',fontSize:11,fontWeight:600}}><span style={{color:'#5a7a66'}}>{y.year}: </span><span style={{color:'#1b2e22'}}>{fmtFull(y.amount)}</span></div>)}
+                </div>
+              )}
+            </Card>
+          );
+        })}
         {filtered.length===0&&<div style={{textAlign:'center',padding:'48px',color:'#8aaa96',fontSize:13}}>No projects match your filters.</div>}
       </div>
     </div>
@@ -794,9 +822,29 @@ function TMDeptReview({deptId,onNav,refreshData}){
   const [saved,setSaved]=useState(false);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
+  const [newItem,setNewItem]=useState({code:'',name:'',fy27_request:0});
+  const [addingItem,setAddingItem]=useState(false);
   const totalReq=items.reduce((s,li)=>s+li.fy27_request,0);
   const totalRec=items.reduce((s,li)=>s+(li.fy27_recommended??li.fy27_request),0);
   const savings=totalReq-totalRec;
+  const inp={padding:'5px 8px',borderRadius:6,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif'};
+
+  async function handleAddLineItem(){
+    if(!newItem.name.trim()){return;}
+    if(_supa){
+      const{data,error:insErr}=await _supa.from('line_items').insert({
+        dept_id:deptId,code:newItem.code,name:newItem.name,
+        fy25_actual:0,fy26_approved:0,fy27_request:parseInt(newItem.fy27_request)||0,
+        sort_order:items.length
+      }).select().single();
+      if(insErr){setError(insErr.message);return;}
+      setItems(prev=>[...prev,{code:newItem.code,name:newItem.name,fy25_actual:0,fy26_approved:0,fy27_request:parseInt(newItem.fy27_request)||0,fy27_recommended:parseInt(newItem.fy27_request)||0,_db_id:data?.id}]);
+    }else{
+      setItems(prev=>[...prev,{code:newItem.code,name:newItem.name,fy25_actual:0,fy26_approved:0,fy27_request:parseInt(newItem.fy27_request)||0,fy27_recommended:parseInt(newItem.fy27_request)||0}]);
+    }
+    setNewItem({code:'',name:'',fy27_request:0});setAddingItem(false);
+  }
+
   async function handleSave(){
     setSaving(true);setError('');
     if(_supa){
@@ -827,12 +875,15 @@ function TMDeptReview({deptId,onNav,refreshData}){
       {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#880e4f',fontSize:12}}>{error}</div>}
       {dept.request_note&&<Card style={{padding:'16px 20px',marginBottom:18,background:'#fffdf5',border:'1px solid #e8d88a'}}><div style={{fontSize:11,fontWeight:700,color:'#5a4000',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:5}}>Department Narrative</div><p style={{margin:0,fontSize:12,color:'#5a4a10',lineHeight:1.7}}>{dept.request_note}</p></Card>}
       <Card style={{marginBottom:18}}>
-        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Review</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Enter TM recommendation. Leave as-is to accept department request.</p></div>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>Line Item Review</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Enter TM recommendation. Leave as-is to accept department request.</p></div>
+          <button onClick={()=>setAddingItem(v=>!v)} style={{background:'#e8f5ee',border:'1px solid #c8ddd4',borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:600,color:'#2d6a4f',cursor:'pointer'}}>+ Add Line Item</button>
+        </div>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>Dept Request</th><th style={{...thStyle,textAlign:'right',color:'#1b3a2a'}}>TM Recommendation</th><th style={{...thStyle,textAlign:'right'}}>Variance</th></tr></thead>
           <tbody>
             {items.map((li,i)=>{const rec=li.fy27_recommended??li.fy27_request,variance=rec-li.fy27_request;return(
-              <tr key={li.code} style={{borderBottom:i<items.length-1?'1px solid #eef3f0':'none',background:variance<0?'#fef9f0':'transparent'}}>
+              <tr key={li.code||i} style={{borderBottom:i<items.length-1?'1px solid #eef3f0':'none',background:variance<0?'#fef9f0':'transparent'}}>
                 <td style={{...tdStyle,paddingLeft:20}}><span style={{fontSize:10,color:'#aac4b4',marginRight:7}}>{li.code}</span><span style={{fontWeight:500}}>{li.name}</span></td>
                 <td style={{...tdStyle,textAlign:'right',color:'#8aaa96'}}>{fmtFull(li.fy26_approved)}</td>
                 <td style={{...tdStyle,textAlign:'right',fontWeight:600}}>{fmtFull(li.fy27_request)}</td>
@@ -840,6 +891,24 @@ function TMDeptReview({deptId,onNav,refreshData}){
                 <td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:variance<0?'#b91c1c':variance>0?'#15803d':'#aaa'}}>{variance===0?'—':`${variance>0?'+':''}${fmtFull(variance)}`}</td>
               </tr>
             );})}
+            {addingItem&&(
+              <tr style={{background:'#f8fbf9',borderTop:'2px dashed #c8ddd4'}}>
+                <td style={{...tdStyle,paddingLeft:20}} colSpan={2}>
+                  <div style={{display:'flex',gap:6}}>
+                    <input value={newItem.code} onChange={e=>setNewItem(p=>({...p,code:e.target.value}))} placeholder="Code" style={{...inp,width:64}}/>
+                    <input value={newItem.name} onChange={e=>setNewItem(p=>({...p,name:e.target.value}))} placeholder="Line item name *" style={{...inp,flex:1}}/>
+                  </div>
+                </td>
+                <td style={{...tdStyle,textAlign:'right',color:'#aaa'}}>—</td>
+                <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={newItem.fy27_request} onChange={e=>setNewItem(p=>({...p,fy27_request:e.target.value}))} placeholder="0" style={{...inp,width:118,textAlign:'right'}}/></td>
+                <td style={{...tdStyle,textAlign:'right'}}>
+                  <div style={{display:'flex',gap:5,justifyContent:'flex-end'}}>
+                    <button onClick={handleAddLineItem} style={{padding:'4px 9px',background:'#2d6a4f',color:'#fff',border:'none',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>Add</button>
+                    <button onClick={()=>setAddingItem(false)} style={{padding:'4px 9px',background:'#fff',border:'1px solid #c8ddd4',borderRadius:5,fontSize:11,cursor:'pointer'}}>✕</button>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
           <tfoot><tr style={{background:'#1b3a2a',color:'#fff'}}><td style={{...tdStyle,paddingLeft:20,fontWeight:700}}>Total</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(dept.fy26_approved)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(totalReq)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,fontSize:14}}>{fmtFull(totalRec)}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700,color:savings>0?'#ffd700':'#aaa'}}>{savings>0?`-${fmtFull(savings)}`:savings<0?`+${fmtFull(Math.abs(savings))}`:'—'}</td></tr></tfoot>
         </table>
@@ -866,6 +935,8 @@ function TMDeptReview({deptId,onNav,refreshData}){
 function TMCapitalReview({refreshData}){
   const [statuses,setStatuses]=useState({});
   const [notes,setNotes]=useState({});
+  const [finals,setFinals]=useState({});
+  const [photos,setPhotos]=useState({});
   const [saved,setSaved]=useState(false);
   const [saving,setSaving]=useState(false);
   async function handleSave(){
@@ -874,8 +945,12 @@ function TMCapitalReview({refreshData}){
       const updates=[
         ...Object.entries(statuses).map(([id,status])=>_supa.from('capital_projects').update({status}).eq('id',id)),
         ...Object.entries(notes).map(([id,tm_note])=>_supa.from('capital_projects').update({tm_note}).eq('id',id)),
+        ...Object.entries(finals).map(([id,fy27_final])=>_supa.from('capital_projects').update({fy27_final:parseInt(fy27_final)||null}).eq('id',id)),
+        ...Object.entries(photos).map(([id,photo_url])=>_supa.from('capital_projects').update({photo_url}).eq('id',id)),
       ];
-      await Promise.all(updates);
+      const results=await Promise.all(updates);
+      const errs=results.map(r=>r.error).filter(Boolean);
+      if(errs.length){console.error('Capital save errors',errs);}
       await loadAllData();
       if(refreshData)refreshData();
     }
@@ -883,11 +958,11 @@ function TMCapitalReview({refreshData}){
     setTimeout(()=>setSaved(false),3000);
   }
   return(
-    <div style={{padding:'32px 36px',maxWidth:1100}}>
+    <div style={{padding:'32px 36px',maxWidth:1200}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
         <div>
           <h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Capital Plan Review</h1>
-          <p style={{margin:0,color:'#5a7a66',fontSize:13}}>FY2027–FY2031 — Review and recommend capital projects</p>
+          <p style={{margin:0,color:'#5a7a66',fontSize:13}}>FY2027–FY2031 — Review, recommend, and finalize capital projects</p>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {saved&&<span style={{fontSize:12,color:'#2e7d32',fontWeight:600}}>Saved ✓</span>}
@@ -901,18 +976,27 @@ function TMCapitalReview({refreshData}){
         <StatCard label="Projects" value={CAPITAL_PROJECTS.length} sub={`${CAPITAL_PROJECTS.filter(p=>p.status==='recommended').length} recommended`}/>
       </div>
       <Card>
-        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Capital Projects</h3></div>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Capital Projects</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Set status, final funding amount, photo URL, and add TM notes for each project.</p></div>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Project</th><th style={thStyle}>Dept</th><th style={{...thStyle,textAlign:'right'}}>Total</th><th style={thStyle}>Years</th><th style={thStyle}>Status</th><th style={thStyle}>TM Note</th></tr></thead>
+          <thead><tr style={{background:'#f2f7f4'}}>
+            <th style={{...thStyle,paddingLeft:20}}>Project</th>
+            <th style={thStyle}>Dept</th>
+            <th style={{...thStyle,textAlign:'right'}}>Total</th>
+            <th style={{...thStyle,textAlign:'right',color:'#1b3a2a'}}>Final FY2027</th>
+            <th style={thStyle}>Status</th>
+            <th style={thStyle}>Photo URL</th>
+            <th style={thStyle}>TM Note</th>
+          </tr></thead>
           <tbody>
             {CAPITAL_PROJECTS.map((proj,i)=>{const dept=DEPARTMENTS.find(d=>d.id===proj.department);return(
               <tr key={proj.id} style={{borderBottom:i<CAPITAL_PROJECTS.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
                 <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{proj.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{proj.category} · {proj.funding_source}</div></td>
                 <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{dept?.shortName||proj.department}</td>
                 <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(proj.total)}</td>
-                <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{proj.years.map(y=>y.year).join(', ')}</td>
+                <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={finals[proj.id]??proj.fy27_final??''} onChange={e=>setFinals(p=>({...p,[proj.id]:e.target.value}))} placeholder="—" style={{width:100,padding:'4px 7px',borderRadius:5,border:'1.5px solid #2d6a4f',fontSize:11,textAlign:'right',fontFamily:'Figtree,sans-serif',background:'#f0faf4'}}/></td>
                 <td style={tdStyle}><select value={statuses[proj.id]||proj.status} onChange={e=>setStatuses(p=>({...p,[proj.id]:e.target.value}))} style={{padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}><option value="recommended">Recommended</option><option value="planned">Planned</option><option value="under_review">Under Review</option><option value="deferred">Deferred</option><option value="funded">Funded</option></select></td>
-                <td style={tdStyle}><input value={notes[proj.id]??proj.tm_note??''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:150,padding:'4px 8px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
+                <td style={tdStyle}><input value={photos[proj.id]??proj.photo_url??''} onChange={e=>setPhotos(p=>({...p,[proj.id]:e.target.value}))} placeholder="https://..." style={{width:140,padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
+                <td style={tdStyle}><input value={notes[proj.id]??proj.tm_note??''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:130,padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
               </tr>
             );})}
           </tbody>
@@ -965,6 +1049,207 @@ function TMPublish({onNav}){
         <button onClick={()=>onNav('tm/dashboard')} style={{background:'#fff',border:'1.5px solid #c8ddd4',borderRadius:8,padding:'10px 22px',fontSize:12,fontWeight:600,color:'#555',cursor:'pointer'}}>Back</button>
         <button onClick={handlePublish} disabled={publishing} style={{background:'#1b3a2a',border:'none',borderRadius:8,padding:'10px 26px',fontSize:12,fontWeight:700,color:'#fff',cursor:'pointer',opacity:publishing?0.6:1}}>{publishing?'Publishing…':'Publish to Public Portal →'}</button>
       </div>
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Enterprise Fund Review ───────────────────────────────────────
+function TMEnterpriseReview({refreshData}){
+  const [funds,setFunds]=useState(ENTERPRISE_FUNDS.map(f=>({...f,lineItems:[...f.lineItems.map(li=>({...li}))]})));
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+  const [newItems,setNewItems]=useState({});
+  const inp=(w)=>({width:w||'100%',padding:'5px 8px',borderRadius:6,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif',boxSizing:'border-box'});
+
+  function updateFundField(fi,field,val){setFunds(prev=>{const u=[...prev];u[fi]={...u[fi],[field]:parseInt(val)||0};return u;});}
+  function updateLineItem(fi,li,field,val){setFunds(prev=>{const u=[...prev];const lis=[...u[fi].lineItems];lis[li]={...lis[li],[field]:parseInt(val)||0};u[fi]={...u[fi],lineItems:lis};return u;});}
+  function addLineItem(fi){
+    const ni=newItems[fi]||{name:'',fy26_approved:0,fy27_request:0};
+    if(!ni.name.trim())return;
+    setFunds(prev=>{const u=[...prev];u[fi]={...u[fi],lineItems:[...u[fi].lineItems,{name:ni.name,fy26_approved:parseInt(ni.fy26_approved)||0,fy27_request:parseInt(ni.fy27_request)||0}]};return u;});
+    setNewItems(p=>({...p,[fi]:{name:'',fy26_approved:0,fy27_request:0}}));
+  }
+  function removeLineItem(fi,li){setFunds(prev=>{const u=[...prev];u[fi]={...u[fi],lineItems:u[fi].lineItems.filter((_,idx)=>idx!==li)};return u;});}
+
+  async function handleSave(){
+    setSaving(true);setError('');
+    if(_supa){
+      try{
+        const updates=funds.map(f=>_supa.from('enterprise_funds').update({
+          fy26_approved:f.fy26_approved,fy27_request:f.fy27_request,
+          mission:f.mission,head:f.head,line_items:f.lineItems
+        }).eq('id',f.id).then(r=>r.error));
+        const errs=(await Promise.all(updates)).filter(Boolean);
+        if(errs.length)throw new Error(errs[0].message||'Save failed');
+        await loadAllData();if(refreshData)refreshData();
+      }catch(e){setError(e.message||'Save failed');setSaving(false);return;}
+    }else{
+      ENTERPRISE_FUNDS.forEach((ef,i)=>{ENTERPRISE_FUNDS[i]={...ef,...funds[i]};});
+    }
+    setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),3000);
+  }
+
+  return(
+    <div style={{padding:'32px 36px',maxWidth:1100}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+        <div><h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Enterprise Fund Review</h1><p style={{margin:0,color:'#5a7a66',fontSize:13}}>Water &amp; Sewer — edit budgets and line items</p></div>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          {saved&&<span style={{fontSize:12,color:'#2e7d32',fontWeight:600}}>Saved ✓</span>}
+          {DEMO_MODE&&<span style={{fontSize:11,color:'#856404'}}>Demo mode</span>}
+          <button onClick={handleSave} disabled={saving} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:7,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Save Changes'}</button>
+        </div>
+      </div>
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#880e4f',fontSize:12}}>{error}</div>}
+      {funds.map((fund,fi)=>(
+        <Card key={fund.id} style={{marginBottom:22,overflow:'hidden'}}>
+          <div style={{background:fund.id==='water'?'#1b3a2a':'#2a3a5a',padding:'16px 24px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <h2 style={{margin:'0 0 2px',fontSize:17,fontWeight:700,fontFamily:"'Source Serif 4',serif"}}>{fund.name}</h2>
+              <p style={{margin:0,color:'rgba(255,255,255,0.6)',fontSize:11}}>{fund.head}</p>
+            </div>
+            <div style={{display:'flex',gap:16,alignItems:'center'}}>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',marginBottom:2}}>FY2026 APPROVED</div>
+                <input type="number" value={fund.fy26_approved} onChange={e=>updateFundField(fi,'fy26_approved',e.target.value)} style={{width:100,padding:'4px 8px',borderRadius:5,border:'1px solid rgba(255,255,255,0.3)',background:'rgba(0,0,0,0.2)',color:'#fff',fontSize:13,fontWeight:700,textAlign:'right',fontFamily:'Figtree,sans-serif'}}/>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',marginBottom:2}}>FY2027 REQUEST</div>
+                <input type="number" value={fund.fy27_request} onChange={e=>updateFundField(fi,'fy27_request',e.target.value)} style={{width:100,padding:'4px 8px',borderRadius:5,border:'1.5px solid rgba(201,162,39,0.6)',background:'rgba(0,0,0,0.2)',color:'#fff',fontSize:13,fontWeight:700,textAlign:'right',fontFamily:'Figtree,sans-serif'}}/>
+              </div>
+            </div>
+          </div>
+          <div style={{padding:20}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Line Item</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th><th style={{...thStyle,textAlign:'right'}}>Change</th><th style={{width:40}}></th></tr></thead>
+              <tbody>
+                {fund.lineItems.map((li,lii)=>{const c=li.fy26_approved>0?pctChg(li.fy26_approved,li.fy27_request):0;return(
+                  <tr key={lii} style={{borderBottom:'1px solid #eef3f0'}}>
+                    <td style={{...tdStyle,fontWeight:500,color:'#2a4a38'}}>{li.name}</td>
+                    <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={li.fy26_approved} onChange={e=>updateLineItem(fi,lii,'fy26_approved',e.target.value)} style={{...inp(90),textAlign:'right'}}/></td>
+                    <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={li.fy27_request} onChange={e=>updateLineItem(fi,lii,'fy27_request',e.target.value)} style={{...inp(90),textAlign:'right',border:'1.5px solid #2d6a4f',background:'#f0faf4'}}/></td>
+                    <td style={{...tdStyle,textAlign:'right',fontSize:11,fontWeight:600,color:c>5?'#b91c1c':'#5a7a66'}}>{c!==0?`${c>0?'+':''}${c.toFixed(1)}%`:'—'}</td>
+                    <td style={{padding:'6px 8px',textAlign:'center'}}><button onClick={()=>removeLineItem(fi,lii)} style={{background:'none',border:'none',color:'#c00',cursor:'pointer',fontSize:13,padding:0}} title="Remove">✕</button></td>
+                  </tr>
+                );})}
+                <tr style={{background:'#f8fbf9',borderTop:'1px dashed #c8ddd4'}}>
+                  <td style={tdStyle}><input value={(newItems[fi]||{}).name||''} onChange={e=>setNewItems(p=>({...p,[fi]:{...(p[fi]||{}),name:e.target.value}}))} placeholder="New line item name..." style={inp()}/></td>
+                  <td style={tdStyle}><input type="number" value={(newItems[fi]||{}).fy26_approved||''} onChange={e=>setNewItems(p=>({...p,[fi]:{...(p[fi]||{}),fy26_approved:e.target.value}}))} placeholder="0" style={{...inp(90),textAlign:'right'}}/></td>
+                  <td style={tdStyle}><input type="number" value={(newItems[fi]||{}).fy27_request||''} onChange={e=>setNewItems(p=>({...p,[fi]:{...(p[fi]||{}),fy27_request:e.target.value}}))} placeholder="0" style={{...inp(90),textAlign:'right'}}/></td>
+                  <td colSpan={2} style={tdStyle}><button onClick={()=>addLineItem(fi)} style={{padding:'4px 10px',background:'#2d6a4f',color:'#fff',border:'none',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>+ Add</button></td>
+                </tr>
+              </tbody>
+              <tfoot><tr style={{background:'#f2f7f4',borderTop:'2px solid #c8ddd4'}}>
+                <td style={{...tdStyle,fontWeight:700}}>Total</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(fund.lineItems.reduce((s,li)=>s+li.fy26_approved,0))}</td>
+                <td style={{...tdStyle,textAlign:'right',fontWeight:700,color:'#1b3a2a'}}>{fmtFull(fund.lineItems.reduce((s,li)=>s+li.fy27_request,0))}</td>
+                <td colSpan={2}></td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── INTERNAL: TM Revenue Manager ──────────────────────────────────────────────
+function TMRevenueManager({refreshData}){
+  const defaultRows=REVENUE.fy27||REVENUE[Object.keys(REVENUE)[0]]||[];
+  const [fy,setFy]=useState('FY2027');
+  const [rows,setRows]=useState(defaultRows.map(r=>({...r})));
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+  const [newRow,setNewRow]=useState({source:'',amount:0});
+  const inp={padding:'6px 9px',borderRadius:6,border:'1.5px solid #c8ddd4',fontSize:12,fontFamily:'Figtree,sans-serif'};
+  const total=rows.reduce((s,r)=>s+(parseInt(r.amount)||0),0);
+
+  function loadFY(year){
+    setFy(year);
+    const yr=REVENUE[year]||[];setRows(yr.map(r=>({...r})));
+  }
+
+  async function handleSave(){
+    setSaving(true);setError('');
+    if(_supa){
+      try{
+        const existing=rows.filter(r=>r.id);
+        const newRows=rows.filter(r=>!r.id);
+        await Promise.all([
+          ...existing.map(r=>_supa.from('revenues').update({source:r.source,amount:parseInt(r.amount)||0,percent:r.percent||null}).eq('id',r.id).then(res=>res.error)),
+          ...newRows.length?[_supa.from('revenues').insert(newRows.map((r,i)=>({fiscal_year:fy,source:r.source,amount:parseInt(r.amount)||0,sort_order:existing.length+i}))).then(res=>res.error)]:[]
+        ]);
+        await loadAllData();if(refreshData)refreshData();
+        loadFY(fy);
+      }catch(e){setError(e.message||'Save failed');setSaving(false);return;}
+    }else{
+      const recalc=rows.map(r=>({...r,percent:total>0?Math.round((parseInt(r.amount)/total)*1000)/10:0}));
+      REVENUE[fy]=recalc;setRows(recalc);
+    }
+    setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),3000);
+  }
+
+  async function handleDelete(idx){
+    const row=rows[idx];
+    if(row.id&&_supa){const{error:e}=await _supa.from('revenues').delete().eq('id',row.id);if(e){setError(e.message);return;}}
+    setRows(prev=>prev.filter((_,i)=>i!==idx));
+  }
+
+  function handleAdd(){
+    if(!newRow.source.trim())return;
+    setRows(prev=>[...prev,{source:newRow.source,amount:parseInt(newRow.amount)||0}]);
+    setNewRow({source:'',amount:0});
+  }
+
+  const fyOptions=['FY2025','FY2026','FY2027','FY2028'];
+
+  return(
+    <div style={{padding:'32px 36px',maxWidth:900}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+        <div><h1 style={{margin:'0 0 4px',fontSize:26,fontWeight:700,color:'#1b2e22',fontFamily:"'Source Serif 4',serif"}}>Revenue Management</h1><p style={{margin:0,color:'#5a7a66',fontSize:13}}>Edit revenue sources and amounts by fiscal year</p></div>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          {saved&&<span style={{fontSize:12,color:'#2e7d32',fontWeight:600}}>Saved ✓</span>}
+          {DEMO_MODE&&<span style={{fontSize:11,color:'#856404'}}>Demo mode</span>}
+          <button onClick={handleSave} disabled={saving} style={{background:'#1b3a2a',color:'#fff',border:'none',borderRadius:7,padding:'7px 16px',fontSize:12,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':'Save Changes'}</button>
+        </div>
+      </div>
+      {error&&<div style={{background:'#fce4ec',border:'1px solid #f48fb1',borderRadius:8,padding:'9px 14px',marginBottom:14,color:'#880e4f',fontSize:12}}>{error}</div>}
+      <Card style={{padding:'14px 20px',marginBottom:18,display:'flex',gap:10,alignItems:'center'}}>
+        <span style={{fontSize:12,fontWeight:700,color:'#3a5444'}}>Fiscal Year:</span>
+        {fyOptions.map(y=><button key={y} onClick={()=>loadFY(y)} style={{padding:'5px 14px',borderRadius:6,border:`2px solid ${fy===y?'#2d6a4f':'#c8ddd4'}`,background:fy===y?'#e8f5ee':'#fff',fontSize:12,fontWeight:fy===y?700:500,color:fy===y?'#1b3a2a':'#5a7a66',cursor:'pointer'}}>{y}</button>)}
+      </Card>
+      <Card style={{marginBottom:18}}>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>{fy} Revenue Sources</h3>
+          <div style={{fontSize:13,fontWeight:700,color:'#1b3a2a'}}>{fmtFull(total)}</div>
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'#f2f7f4'}}><th style={{...thStyle,paddingLeft:20}}>Revenue Source</th><th style={{...thStyle,textAlign:'right'}}>Amount</th><th style={{...thStyle,textAlign:'right'}}>% of Total</th><th style={{width:40}}></th></tr></thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid #eef3f0'}}>
+                <td style={{...tdStyle,paddingLeft:20}}><input value={row.source} onChange={e=>setRows(prev=>{const u=[...prev];u[i]={...u[i],source:e.target.value};return u;})} style={{...inp,width:'100%',boxSizing:'border-box'}}/></td>
+                <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={row.amount} onChange={e=>setRows(prev=>{const u=[...prev];u[i]={...u[i],amount:parseInt(e.target.value)||0};return u;})} style={{...inp,width:120,textAlign:'right'}}/></td>
+                <td style={{...tdStyle,textAlign:'right',color:'#5a7a66',fontWeight:600}}>{total>0?`${((row.amount/total)*100).toFixed(1)}%`:'—'}</td>
+                <td style={{padding:'6px 8px',textAlign:'center'}}><button onClick={()=>handleDelete(i)} style={{background:'none',border:'none',color:'#c00',cursor:'pointer',fontSize:13}} title="Remove">✕</button></td>
+              </tr>
+            ))}
+            <tr style={{background:'#f8fbf9',borderTop:'1px dashed #c8ddd4'}}>
+              <td style={{...tdStyle,paddingLeft:20}}><input value={newRow.source} onChange={e=>setNewRow(p=>({...p,source:e.target.value}))} placeholder="New revenue source..." style={{...inp,width:'100%',boxSizing:'border-box'}}/></td>
+              <td style={tdStyle}><input type="number" value={newRow.amount||''} onChange={e=>setNewRow(p=>({...p,amount:e.target.value}))} placeholder="0" style={{...inp,width:120,textAlign:'right'}}/></td>
+              <td colSpan={2} style={tdStyle}><button onClick={handleAdd} style={{padding:'4px 12px',background:'#2d6a4f',color:'#fff',border:'none',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer'}}>+ Add</button></td>
+            </tr>
+          </tbody>
+          <tfoot><tr style={{background:'#1b3a2a',color:'#fff'}}>
+            <td style={{...tdStyle,paddingLeft:20,fontWeight:700}}>Total</td>
+            <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(total)}</td>
+            <td style={{...tdStyle,textAlign:'right',color:'#c9a227',fontWeight:700}}>100%</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </Card>
+      <div style={{padding:'12px 16px',background:'#f2f7f4',borderRadius:8,fontSize:11,color:'#5a7a66',lineHeight:1.6}}><strong>Note:</strong> These revenue figures are displayed on the public Budget Overview page. Percentages are automatically calculated from the amounts entered. To show revenue in the public portal, ensure your revenue sources are entered for the current fiscal year (FY2027).</div>
     </div>
   );
 }
@@ -1125,13 +1410,24 @@ function TMUserManagement(){
     if(!inviteForm.email.trim()){setError('Email is required.');return;}
     setInviting(true);setError('');setInviteMsg('');
     if(_supa){
-      setInviteMsg('To create a new staff account, go to your Supabase Dashboard → Authentication → Users → Invite User. Enter their email and set the role/dept_id in the profiles table once they accept.');
+      setInviteMsg('Invitation instructions: Go to Supabase Dashboard → Authentication → Users → Invite User and enter their email. Once they accept and sign in, their name will appear in the table below where you can assign their department and role using the Edit button.');
     }else{
       const newUser={id:`u${Date.now()}`,display_name:inviteForm.display_name,email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id};
       setDemoUsers(prev=>[...prev,newUser]);
       setInviteMsg(`Staff member ${inviteForm.display_name||inviteForm.email} added (demo only).`);
     }
     setInviting(false);setShowInvite(false);setInviteForm({email:'',display_name:'',dept_id:'',role:'dept_head'});
+  }
+
+  async function handleDeleteUser(userId){
+    if(!window.confirm('Remove this user\'s portal access? Their authentication account will remain but they will no longer have a profile row.'))return;
+    if(_supa){
+      const{error:delErr}=await _supa.from('profiles').delete().eq('id',userId);
+      if(delErr){setError(delErr.message);return;}
+      setLiveUsers(prev=>prev.filter(u=>u.id!==userId));
+    }else{
+      setDemoUsers(prev=>prev.filter(u=>u.id!==userId));
+    }
   }
 
   async function handleUpdateUser(userId,updates){
@@ -1211,7 +1507,10 @@ function TMUserManagement(){
                         <button onClick={()=>setEditingId(null)} style={{fontSize:11,fontWeight:600,color:'#555',background:'#f2f7f4',border:'1px solid #c8ddd4',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Cancel</button>
                       </div>
                     ):(
-                      <button onClick={()=>{setEditingId(u.id);setEditForm({role:u.role,dept_id:u.dept_id||''});}} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Edit</button>
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>{setEditingId(u.id);setEditForm({role:u.role,dept_id:u.dept_id||''});}} style={{fontSize:11,fontWeight:600,color:'#2d6a4f',background:'#e8f5ee',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Edit</button>
+                        <button onClick={()=>handleDeleteUser(u.id)} style={{fontSize:11,fontWeight:600,color:'#b91c1c',background:'#fce4ec',border:'none',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Remove</button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -1479,7 +1778,7 @@ function LoginScreen({onLogin}){
 const NAV={
   public:[{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/enterprise',label:'Enterprise Funds'},{id:'public/capital',label:'Capital Plan'}],
   dept:[{section:'My Department'},{id:'dept/dashboard',label:'My Dashboard'},{id:'dept/budget-request',label:'FY2027 Budget Request'},{id:'dept/capital-request',label:'Capital Request'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/capital',label:'Capital Plan'}],
-  tm:[{section:'Town Manager'},{id:'tm/dashboard',label:'TM Dashboard'},{id:'tm/capital-review',label:'Capital Review'},{id:'tm/departments',label:'Manage Departments'},{id:'tm/users',label:'User Management'},{id:'tm/upload',label:'Upload Historical Data'},{id:'tm/publish',label:'Publish Budget'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/capital',label:'Capital Plan'}]
+  tm:[{section:'Town Manager'},{id:'tm/dashboard',label:'TM Dashboard'},{id:'tm/capital-review',label:'Capital Review'},{id:'tm/enterprise',label:'Enterprise Funds'},{id:'tm/revenue',label:'Revenue Management'},{id:'tm/departments',label:'Manage Departments'},{id:'tm/users',label:'User Management'},{id:'tm/upload',label:'Upload Historical Data'},{id:'tm/publish',label:'Publish Budget'},{section:'Public Portal'},{id:'public/dashboard',label:'Budget Overview'},{id:'public/departments',label:'Departments'},{id:'public/capital',label:'Capital Plan'}]
 };
 
 function Sidebar({role,deptId,view,onNav,onSwitch}){
@@ -1636,6 +1935,8 @@ function App(){
       case'dept/capital-request':return<CapitalRequestForm deptId={deptId} onNav={nav} refreshData={refreshData}/>;
       case'tm/dashboard':return<TMDashboard onNav={nav}/>;
       case'tm/capital-review':return<TMCapitalReview refreshData={refreshData}/>;
+      case'tm/enterprise':return<TMEnterpriseReview refreshData={refreshData}/>;
+      case'tm/revenue':return<TMRevenueManager refreshData={refreshData}/>;
       case'tm/departments':return<TMDepartmentManager onNav={nav} refreshData={refreshData}/>;
       case'tm/users':return<TMUserManagement/>;
       case'tm/upload':return<TMDataUpload onNav={nav} refreshData={refreshData}/>;

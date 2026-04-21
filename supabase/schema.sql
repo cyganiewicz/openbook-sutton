@@ -2,13 +2,34 @@
 -- OpenBook — Town of Sutton, MA
 -- Supabase PostgreSQL Schema
 --
--- Run this entire file in the Supabase SQL Editor ONCE to set
--- up all tables, Row-Level Security policies, and triggers.
--- Then run seed.sql to load the initial budget data.
+-- This file is safe to re-run (idempotent). Run it in the
+-- Supabase SQL Editor to set up or update all tables, RLS
+-- policies, and functions.  Then run seed.sql for initial data.
 -- ============================================================
 
 -- ── Extensions ────────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ── Helper function: is_town_manager() ───────────────────────────────────────
+-- SECURITY DEFINER bypasses RLS so the function can read profiles without
+-- triggering the profiles policies — this breaks the infinite-recursion loop
+-- that occurred when TM policies did "SELECT id FROM profiles WHERE role='tm'".
+CREATE OR REPLACE FUNCTION public.is_town_manager()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'town_manager'
+  );
+END;
+$$;
+
+REVOKE ALL   ON FUNCTION public.is_town_manager() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_town_manager() TO authenticated;
 
 -- ── Tables ────────────────────────────────────────────────────────────────────
 
@@ -61,8 +82,14 @@ CREATE TABLE IF NOT EXISTS capital_projects (
   total            INTEGER       DEFAULT 0,
   years            JSONB         DEFAULT '[]',
   tm_note          TEXT,
+  fy27_final       INTEGER,
+  photo_url        TEXT          DEFAULT '',
   updated_at       TIMESTAMPTZ   DEFAULT now()
 );
+
+-- Add new columns to capital_projects for existing deployments
+ALTER TABLE capital_projects ADD COLUMN IF NOT EXISTS fy27_final  INTEGER;
+ALTER TABLE capital_projects ADD COLUMN IF NOT EXISTS photo_url   TEXT DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS enterprise_funds (
   id               TEXT PRIMARY KEY,
@@ -85,6 +112,17 @@ CREATE TABLE IF NOT EXISTS profiles (
   dept_id          TEXT          REFERENCES departments(id) ON DELETE SET NULL,
   display_name     TEXT,
   created_at       TIMESTAMPTZ   DEFAULT now()
+);
+
+-- Revenue sources — editable by Town Manager
+CREATE TABLE IF NOT EXISTS revenues (
+  id               SERIAL PRIMARY KEY,
+  fiscal_year      TEXT          NOT NULL DEFAULT 'FY2027',
+  source           TEXT          NOT NULL,
+  amount           INTEGER       NOT NULL DEFAULT 0,
+  percent          NUMERIC(5,1),
+  sort_order       INTEGER       DEFAULT 0,
+  updated_at       TIMESTAMPTZ   DEFAULT now()
 );
 
 -- Application-wide settings (e.g. published flag)
@@ -124,22 +162,24 @@ ALTER TABLE departments    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE line_items     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE capital_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE enterprise_funds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE revenues       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings       ENABLE ROW LEVEL SECURITY;
 
 -- ---- departments ----
 -- Everyone (including anonymous) can read all departments
+DROP POLICY IF EXISTS "Public read departments"  ON departments;
 CREATE POLICY "Public read departments"
   ON departments FOR SELECT USING (true);
 
 -- Town Manager can insert new departments
+DROP POLICY IF EXISTS "TM inserts departments" ON departments;
 CREATE POLICY "TM inserts departments"
   ON departments FOR INSERT
-  WITH CHECK (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ));
+  WITH CHECK (is_town_manager());
 
--- Department heads can update only their own department's mutable fields
+-- Department heads can update only their own department
+DROP POLICY IF EXISTS "Dept head updates own dept" ON departments;
 CREATE POLICY "Dept head updates own dept"
   ON departments FOR UPDATE
   USING (auth.uid() IN (
@@ -148,17 +188,18 @@ CREATE POLICY "Dept head updates own dept"
   WITH CHECK (true);
 
 -- Town Manager can update any department
+DROP POLICY IF EXISTS "TM updates all depts" ON departments;
 CREATE POLICY "TM updates all depts"
   ON departments FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ))
+  USING (is_town_manager())
   WITH CHECK (true);
 
 -- ---- line_items ----
+DROP POLICY IF EXISTS "Public read line_items" ON line_items;
 CREATE POLICY "Public read line_items"
   ON line_items FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Dept head updates own line items" ON line_items;
 CREATE POLICY "Dept head updates own line items"
   ON line_items FOR UPDATE
   USING (auth.uid() IN (
@@ -166,23 +207,42 @@ CREATE POLICY "Dept head updates own line items"
   ))
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "TM updates all line items" ON line_items;
 CREATE POLICY "TM updates all line items"
   ON line_items FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ))
+  USING (is_town_manager())
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Dept head inserts own line items" ON line_items;
+CREATE POLICY "Dept head inserts own line items"
+  ON line_items FOR INSERT
+  WITH CHECK (auth.uid() IN (
+    SELECT id FROM profiles WHERE dept_id = line_items.dept_id AND role = 'dept_head'
+  ));
+
+DROP POLICY IF EXISTS "TM inserts line items" ON line_items;
+CREATE POLICY "TM inserts line items"
+  ON line_items FOR INSERT
+  WITH CHECK (is_town_manager());
+
+DROP POLICY IF EXISTS "TM deletes line items" ON line_items;
+CREATE POLICY "TM deletes line items"
+  ON line_items FOR DELETE
+  USING (is_town_manager());
+
 -- ---- capital_projects ----
+DROP POLICY IF EXISTS "Public read capital_projects" ON capital_projects;
 CREATE POLICY "Public read capital_projects"
   ON capital_projects FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Dept head inserts own capital projects" ON capital_projects;
 CREATE POLICY "Dept head inserts own capital projects"
   ON capital_projects FOR INSERT
   WITH CHECK (auth.uid() IN (
     SELECT id FROM profiles WHERE dept_id = capital_projects.department AND role = 'dept_head'
   ));
 
+DROP POLICY IF EXISTS "Dept head updates own capital projects" ON capital_projects;
 CREATE POLICY "Dept head updates own capital projects"
   ON capital_projects FOR UPDATE
   USING (auth.uid() IN (
@@ -190,22 +250,42 @@ CREATE POLICY "Dept head updates own capital projects"
   ))
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "TM updates all capital projects" ON capital_projects;
 CREATE POLICY "TM updates all capital projects"
   ON capital_projects FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ))
+  USING (is_town_manager())
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "TM inserts capital projects" ON capital_projects;
+CREATE POLICY "TM inserts capital projects"
+  ON capital_projects FOR INSERT
+  WITH CHECK (is_town_manager());
+
+DROP POLICY IF EXISTS "TM deletes capital projects" ON capital_projects;
+CREATE POLICY "TM deletes capital projects"
+  ON capital_projects FOR DELETE
+  USING (is_town_manager());
+
 -- ---- enterprise_funds ----
+DROP POLICY IF EXISTS "Public read enterprise_funds" ON enterprise_funds;
 CREATE POLICY "Public read enterprise_funds"
   ON enterprise_funds FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "TM updates enterprise_funds" ON enterprise_funds;
 CREATE POLICY "TM updates enterprise_funds"
   ON enterprise_funds FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ))
+  USING (is_town_manager())
+  WITH CHECK (true);
+
+-- ---- revenues ----
+DROP POLICY IF EXISTS "Public read revenues" ON revenues;
+CREATE POLICY "Public read revenues"
+  ON revenues FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "TM manages revenues" ON revenues;
+CREATE POLICY "TM manages revenues"
+  ON revenues FOR ALL
+  USING (is_town_manager())
   WITH CHECK (true);
 
 -- ── Get-or-create profile (SECURITY DEFINER bypasses RLS) ───────────────────
@@ -241,39 +321,45 @@ REVOKE ALL ON FUNCTION public.get_or_create_profile() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_or_create_profile() TO authenticated;
 
 -- ---- profiles ----
+DROP POLICY IF EXISTS "Users read own profile" ON profiles;
 CREATE POLICY "Users read own profile"
   ON profiles FOR SELECT USING (auth.uid() = id);
 
--- Allow authenticated users to insert their own profile row (needed when
--- the auto-create trigger did not fire for pre-existing auth accounts)
+-- Allow authenticated users to insert their own profile row
+DROP POLICY IF EXISTS "Users insert own profile" ON profiles;
 CREATE POLICY "Users insert own profile"
   ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users update own profile" ON profiles;
 CREATE POLICY "Users update own profile"
   ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (true);
 
--- TM can read all profiles (to see who is who)
+-- TM can read ALL profiles (uses is_town_manager() to avoid infinite recursion)
+DROP POLICY IF EXISTS "TM reads all profiles" ON profiles;
 CREATE POLICY "TM reads all profiles"
   ON profiles FOR SELECT
-  USING (auth.uid() IN (
-    SELECT id FROM profiles p2 WHERE p2.role = 'town_manager'
-  ));
+  USING (is_town_manager());
 
 -- TM can update any profile (for role/dept assignment)
+DROP POLICY IF EXISTS "TM updates all profiles" ON profiles;
 CREATE POLICY "TM updates all profiles"
   ON profiles FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles p2 WHERE p2.role = 'town_manager'
-  ))
+  USING (is_town_manager())
   WITH CHECK (true);
 
+-- TM can delete a profile (removes portal access for that user)
+DROP POLICY IF EXISTS "TM deletes profiles" ON profiles;
+CREATE POLICY "TM deletes profiles"
+  ON profiles FOR DELETE
+  USING (is_town_manager());
+
 -- ---- settings ----
+DROP POLICY IF EXISTS "Public read settings" ON settings;
 CREATE POLICY "Public read settings"
   ON settings FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "TM updates settings" ON settings;
 CREATE POLICY "TM updates settings"
   ON settings FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE role = 'town_manager'
-  ))
+  USING (is_town_manager())
   WITH CHECK (true);
