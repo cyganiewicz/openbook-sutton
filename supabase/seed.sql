@@ -368,3 +368,21 @@ ON CONFLICT (id) DO UPDATE SET
   priority=EXCLUDED.priority, funding_source=EXCLUDED.funding_source,
   status=EXCLUDED.status, total=EXCLUDED.total, years=EXCLUDED.years,
   tm_note=EXCLUDED.tm_note;
+
+
+-- ── Revenue Sources ───────────────────────────────────────────────────────────
+
+INSERT INTO revenues (fiscal_year, source, amount, percent, sort_order) VALUES
+('FY2027', 'Property Tax Levy',        15848000, 70.9, 1),
+('FY2027', 'State Aid',                 4235000, 18.9, 2),
+('FY2027', 'Local Receipts',            1572000,  7.0, 3),
+('FY2027', 'Free Cash / Available Funds', 700000,  3.1, 4),
+('FY2026', 'Property Tax Levy',        15200000, 72.2, 1),
+('FY2026', 'State Aid',                 4100000, 19.5, 2),
+('FY2026', 'Local Receipts',            1410000,  6.7, 3),
+('FY2026', 'Free Cash / Available Funds', 331000,  1.6, 4),
+('FY2025', 'Property Tax Levy',        14700000, 70.5, 1),
+('FY2025', 'State Aid',                 3950000, 18.9, 2),
+('FY2025', 'Local Receipts',            1380000,  6.6, 3),
+('FY2025', 'Free Cash / Available Funds', 826000,  4.0, 4)
+ON CONFLICT DO NOTHING;
