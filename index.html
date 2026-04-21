@@ -1410,7 +1410,7 @@ function TMUserManagement(){
     if(!inviteForm.email.trim()){setError('Email is required.');return;}
     setInviting(true);setError('');setInviteMsg('');
     if(_supa){
-      setInviteMsg('Invitation instructions: Go to Supabase Dashboard → Authentication → Users → Invite User and enter their email. Once they accept and sign in, use the Edit button below to assign their department and role.');
+      setInviteMsg('Invitation instructions: Go to Supabase Dashboard → Authentication → Users → Invite User and enter their email. Once they accept and sign in, their name will appear in the table below where you can assign their department and role using the Edit button.');
     }else{
       const newUser={id:`u${Date.now()}`,display_name:inviteForm.display_name,email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id};
       setDemoUsers(prev=>[...prev,newUser]);
