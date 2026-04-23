@@ -31,6 +31,31 @@ $$;
 REVOKE ALL   ON FUNCTION public.is_town_manager() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_town_manager() TO authenticated;
 
+-- ── Helper function: is_dept_head_for(dept_id) ────────────────────────────────
+-- SECURITY DEFINER — avoids the infinite-recursion that occurs when a
+-- departments/line_items/capital_projects policy does an inline
+-- "SELECT id FROM profiles WHERE dept_id = ..." sub-query while RLS on profiles
+-- is active.  Using this helper keeps profiles reads inside a function that
+-- Postgres evaluates with BYPASSRLS (function owner = postgres superuser).
+CREATE OR REPLACE FUNCTION public.is_dept_head_for(p_dept_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND dept_id = p_dept_id
+      AND role = 'dept_head'
+  );
+END;
+$$;
+
+REVOKE ALL   ON FUNCTION public.is_dept_head_for(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_dept_head_for(TEXT) TO authenticated;
+
 -- ── Tables ────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS departments (
@@ -179,12 +204,13 @@ CREATE POLICY "TM inserts departments"
   WITH CHECK (is_town_manager());
 
 -- Department heads can update only their own department
+-- Uses is_dept_head_for() (SECURITY DEFINER) to avoid infinite-recursion
+-- that arises when an inline SELECT on profiles triggers the profiles RLS
+-- which in turn calls is_town_manager() which reads profiles again.
 DROP POLICY IF EXISTS "Dept head updates own dept" ON departments;
 CREATE POLICY "Dept head updates own dept"
   ON departments FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE dept_id = departments.id AND role = 'dept_head'
-  ))
+  USING (is_dept_head_for(departments.id))
   WITH CHECK (true);
 
 -- Town Manager can update any department
@@ -202,9 +228,7 @@ CREATE POLICY "Public read line_items"
 DROP POLICY IF EXISTS "Dept head updates own line items" ON line_items;
 CREATE POLICY "Dept head updates own line items"
   ON line_items FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE dept_id = line_items.dept_id AND role = 'dept_head'
-  ))
+  USING (is_dept_head_for(line_items.dept_id))
   WITH CHECK (true);
 
 DROP POLICY IF EXISTS "TM updates all line items" ON line_items;
@@ -216,9 +240,7 @@ CREATE POLICY "TM updates all line items"
 DROP POLICY IF EXISTS "Dept head inserts own line items" ON line_items;
 CREATE POLICY "Dept head inserts own line items"
   ON line_items FOR INSERT
-  WITH CHECK (auth.uid() IN (
-    SELECT id FROM profiles WHERE dept_id = line_items.dept_id AND role = 'dept_head'
-  ));
+  WITH CHECK (is_dept_head_for(line_items.dept_id));
 
 DROP POLICY IF EXISTS "TM inserts line items" ON line_items;
 CREATE POLICY "TM inserts line items"
@@ -238,16 +260,12 @@ CREATE POLICY "Public read capital_projects"
 DROP POLICY IF EXISTS "Dept head inserts own capital projects" ON capital_projects;
 CREATE POLICY "Dept head inserts own capital projects"
   ON capital_projects FOR INSERT
-  WITH CHECK (auth.uid() IN (
-    SELECT id FROM profiles WHERE dept_id = capital_projects.department AND role = 'dept_head'
-  ));
+  WITH CHECK (is_dept_head_for(capital_projects.department));
 
 DROP POLICY IF EXISTS "Dept head updates own capital projects" ON capital_projects;
 CREATE POLICY "Dept head updates own capital projects"
   ON capital_projects FOR UPDATE
-  USING (auth.uid() IN (
-    SELECT id FROM profiles WHERE dept_id = capital_projects.department AND role = 'dept_head'
-  ))
+  USING (is_dept_head_for(capital_projects.department))
   WITH CHECK (true);
 
 DROP POLICY IF EXISTS "TM updates all capital projects" ON capital_projects;
@@ -276,6 +294,11 @@ CREATE POLICY "TM updates enterprise_funds"
   ON enterprise_funds FOR UPDATE
   USING (is_town_manager())
   WITH CHECK (true);
+
+DROP POLICY IF EXISTS "TM inserts enterprise_funds" ON enterprise_funds;
+CREATE POLICY "TM inserts enterprise_funds"
+  ON enterprise_funds FOR INSERT
+  WITH CHECK (is_town_manager());
 
 -- ---- revenues ----
 DROP POLICY IF EXISTS "Public read revenues" ON revenues;
@@ -353,6 +376,12 @@ CREATE POLICY "TM deletes profiles"
   ON profiles FOR DELETE
   USING (is_town_manager());
 
+-- TM can insert profile rows (e.g. to pre-create a profile for a new user)
+DROP POLICY IF EXISTS "TM inserts profiles" ON profiles;
+CREATE POLICY "TM inserts profiles"
+  ON profiles FOR INSERT
+  WITH CHECK (is_town_manager());
+
 -- ---- settings ----
 DROP POLICY IF EXISTS "Public read settings" ON settings;
 CREATE POLICY "Public read settings"
@@ -363,3 +392,87 @@ CREATE POLICY "TM updates settings"
   ON settings FOR UPDATE
   USING (is_town_manager())
   WITH CHECK (true);
+
+-- ── Multi-year historical data columns ───────────────────────────────────────
+-- Allow uploading more than the three default fiscal years.
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS fy23_actual   INTEGER DEFAULT 0;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS fy24_actual   INTEGER DEFAULT 0;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS fy24_approved INTEGER DEFAULT 0;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS fy25_approved INTEGER DEFAULT 0;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS fy26_actual   INTEGER DEFAULT 0;
+
+ALTER TABLE line_items  ADD COLUMN IF NOT EXISTS fy23_actual   INTEGER DEFAULT 0;
+ALTER TABLE line_items  ADD COLUMN IF NOT EXISTS fy24_actual   INTEGER DEFAULT 0;
+ALTER TABLE line_items  ADD COLUMN IF NOT EXISTS fy24_approved INTEGER DEFAULT 0;
+ALTER TABLE line_items  ADD COLUMN IF NOT EXISTS fy25_approved INTEGER DEFAULT 0;
+ALTER TABLE line_items  ADD COLUMN IF NOT EXISTS fy26_actual   INTEGER DEFAULT 0;
+
+-- ── Pending staff invitations ─────────────────────────────────────────────────
+-- Town Manager creates a row here; handle_new_user trigger picks it up by
+-- email when the invited user first signs in, assigning their role and dept.
+CREATE TABLE IF NOT EXISTS pending_invitations (
+  id           SERIAL PRIMARY KEY,
+  email        TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  role         TEXT NOT NULL DEFAULT 'dept_head'
+                             CHECK (role IN ('town_manager','dept_head')),
+  dept_id      TEXT REFERENCES departments(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ DEFAULT now(),
+  created_by   UUID REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+ALTER TABLE pending_invitations ENABLE ROW LEVEL SECURITY;
+
+-- Pending staff invitations — add functional index for email lookups
+CREATE INDEX IF NOT EXISTS pending_invitations_email_lower_idx
+  ON pending_invitations (lower(email));
+
+DROP POLICY IF EXISTS "TM manages pending_invitations" ON pending_invitations;
+CREATE POLICY "TM manages pending_invitations"
+  ON pending_invitations FOR ALL
+  USING (is_town_manager())
+  WITH CHECK (true);
+
+-- Update handle_new_user trigger to consume pending invitation if one exists
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_pending pending_invitations%ROWTYPE;
+BEGIN
+  -- Check for a pre-created invitation record matching this email
+  SELECT * INTO v_pending
+  FROM public.pending_invitations
+  WHERE lower(email) = lower(NEW.email)
+  LIMIT 1;
+
+  IF FOUND THEN
+    INSERT INTO public.profiles (id, role, dept_id, display_name)
+    VALUES (
+      NEW.id,
+      v_pending.role,
+      v_pending.dept_id,
+      COALESCE(v_pending.display_name, NEW.raw_user_meta_data->>'display_name', '')
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    -- Consume the invitation so it cannot be reused
+    DELETE FROM public.pending_invitations WHERE id = v_pending.id;
+  ELSE
+    INSERT INTO public.profiles (id, role, dept_id, display_name)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data->>'role', 'dept_head'),
+      NEW.raw_user_meta_data->>'dept_id',
+      COALESCE(NEW.raw_user_meta_data->>'display_name', '')
+    )
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
