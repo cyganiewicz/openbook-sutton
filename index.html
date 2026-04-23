@@ -1438,9 +1438,6 @@ function TMUserManagement(){
         ? `A pending invitation for ${inviteForm.email} already exists. Go to Supabase Dashboard → Authentication → Users → Invite User with that email to send the sign-in link.`
         : `Invitation record created for ${inviteForm.email}. Next step: go to Supabase Dashboard → Authentication → Users → Invite User and enter "${inviteForm.email}". When they accept and sign in, their role (${inviteForm.role}) and department will be assigned automatically.`
       );
-      if(!alreadyExists&&liveUsers){
-        setLiveUsers(prev=>[...prev,{id:`pending_${Date.now()}`,display_name:inviteForm.display_name||'(pending)',email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id||''}]);
-      }
     }else{
       const newUser={id:`u${Date.now()}`,display_name:inviteForm.display_name,email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id};
       setDemoUsers(prev=>[...prev,newUser]);
@@ -1611,7 +1608,7 @@ function TMDataUpload({onNav,refreshData}){
         if(err){setError('Import error: '+err.error.message);setImporting(false);return;}
         await loadAllData();if(refreshData)refreshData();
       }else{
-        preview.matched.forEach(r=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);if(dept){['fy23_actual','fy24_actual','fy25_actual','fy26_approved','fy27_request'].forEach(col=>{if(r[col]!==undefined&&r[col]!=='')dept[col]=parseInt(r[col])||dept[col]||0;});}});
+        preview.matched.forEach(r=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);if(dept){const yearCols=['fy23_actual','fy24_actual','fy24_approved','fy25_actual','fy25_approved','fy26_actual','fy26_approved','fy27_request'];yearCols.forEach(col=>{if(r[col]!==undefined&&r[col]!=='')dept[col]=parseInt(r[col])||dept[col]||0;});}});
       }
     }else{
       if(_supa){

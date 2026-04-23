@@ -423,6 +423,10 @@ CREATE TABLE IF NOT EXISTS pending_invitations (
 
 ALTER TABLE pending_invitations ENABLE ROW LEVEL SECURITY;
 
+-- Pending staff invitations — add functional index for email lookups
+CREATE INDEX IF NOT EXISTS pending_invitations_email_lower_idx
+  ON pending_invitations (lower(email));
+
 DROP POLICY IF EXISTS "TM manages pending_invitations" ON pending_invitations;
 CREATE POLICY "TM manages pending_invitations"
   ON pending_invitations FOR ALL
