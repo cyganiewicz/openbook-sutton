@@ -199,8 +199,8 @@ async function loadAllData(){
     ]);
     if(dR.error||lR.error||cR.error||eR.error){console.error('Supabase load error',dR.error||lR.error||cR.error||eR.error);return;}
     const byDept={};
-    (lR.data||[]).forEach(li=>{if(!byDept[li.dept_id])byDept[li.dept_id]=[];byDept[li.dept_id].push({code:li.code,name:li.name,fy25_actual:li.fy25_actual||0,fy26_approved:li.fy26_approved||0,fy27_request:li.fy27_request||0,fy27_recommended:li.fy27_recommended,_db_id:li.id});});
-    DEPARTMENTS=(dR.data||[]).map(d=>({id:d.id,name:d.name,shortName:d.short_name,category:d.category,head:d.head||'',phone:d.phone||'',email:d.email||'',mission:d.mission||'',highlights:d.highlights||[],fy25_actual:d.fy25_actual||0,fy26_approved:d.fy26_approved||0,fy27_request:d.fy27_request||0,fy27_recommended:d.fy27_recommended,fy27_approved:d.fy27_approved,request_status:d.request_status||'not_started',request_note:d.request_note||'',tm_note:d.tm_note,lineItems:byDept[d.id]||[]}));
+    (lR.data||[]).forEach(li=>{if(!byDept[li.dept_id])byDept[li.dept_id]=[];byDept[li.dept_id].push({code:li.code,name:li.name,fy23_actual:li.fy23_actual||0,fy24_actual:li.fy24_actual||0,fy24_approved:li.fy24_approved||0,fy25_actual:li.fy25_actual||0,fy25_approved:li.fy25_approved||0,fy26_actual:li.fy26_actual||0,fy26_approved:li.fy26_approved||0,fy27_request:li.fy27_request||0,fy27_recommended:li.fy27_recommended,_db_id:li.id});});
+    DEPARTMENTS=(dR.data||[]).map(d=>({id:d.id,name:d.name,shortName:d.short_name,category:d.category,head:d.head||'',phone:d.phone||'',email:d.email||'',mission:d.mission||'',highlights:d.highlights||[],fy23_actual:d.fy23_actual||0,fy24_actual:d.fy24_actual||0,fy24_approved:d.fy24_approved||0,fy25_actual:d.fy25_actual||0,fy25_approved:d.fy25_approved||0,fy26_actual:d.fy26_actual||0,fy26_approved:d.fy26_approved||0,fy27_request:d.fy27_request||0,fy27_recommended:d.fy27_recommended,fy27_approved:d.fy27_approved,request_status:d.request_status||'not_started',request_note:d.request_note||'',tm_note:d.tm_note,lineItems:byDept[d.id]||[]}));
     CAPITAL_PROJECTS=(cR.data||[]).map(p=>({id:p.id,name:p.name,department:p.department,description:p.description||'',category:p.category||'',priority:p.priority||'medium',funding_source:p.funding_source||'',status:p.status||'under_review',total:p.total||0,years:p.years||[],tm_note:p.tm_note,fy27_final:p.fy27_final,photo_url:p.photo_url||''}));
     ENTERPRISE_FUNDS=(eR.data||[]).map(f=>({id:f.id,name:f.name,shortName:f.short_name,head:f.head,mission:f.mission||'',stats:f.stats||[],fy25_actual:f.fy25_actual||0,fy26_approved:f.fy26_approved||0,fy27_request:f.fy27_request||0,lineItems:f.line_items||[]}));
     if(!rR.error&&rR.data&&rR.data.length>0){
@@ -937,6 +937,7 @@ function TMCapitalReview({refreshData}){
   const [notes,setNotes]=useState({});
   const [finals,setFinals]=useState({});
   const [photos,setPhotos]=useState({});
+  const [fundingSources,setFundingSources]=useState({});
   const [saved,setSaved]=useState(false);
   const [saving,setSaving]=useState(false);
   async function handleSave(){
@@ -947,12 +948,20 @@ function TMCapitalReview({refreshData}){
         ...Object.entries(notes).map(([id,tm_note])=>_supa.from('capital_projects').update({tm_note}).eq('id',id)),
         ...Object.entries(finals).map(([id,fy27_final])=>_supa.from('capital_projects').update({fy27_final:parseInt(fy27_final)||null}).eq('id',id)),
         ...Object.entries(photos).map(([id,photo_url])=>_supa.from('capital_projects').update({photo_url}).eq('id',id)),
+        ...Object.entries(fundingSources).map(([id,funding_source])=>_supa.from('capital_projects').update({funding_source}).eq('id',id)),
       ];
       const results=await Promise.all(updates);
       const errs=results.map(r=>r.error).filter(Boolean);
       if(errs.length){console.error('Capital save errors',errs);}
       await loadAllData();
       if(refreshData)refreshData();
+    }else{
+      // Demo mode: apply changes to in-memory data
+      Object.entries(statuses).forEach(([id,v])=>{const p=CAPITAL_PROJECTS.find(x=>x.id===id);if(p)p.status=v;});
+      Object.entries(notes).forEach(([id,v])=>{const p=CAPITAL_PROJECTS.find(x=>x.id===id);if(p)p.tm_note=v;});
+      Object.entries(finals).forEach(([id,v])=>{const p=CAPITAL_PROJECTS.find(x=>x.id===id);if(p)p.fy27_final=parseInt(v)||null;});
+      Object.entries(photos).forEach(([id,v])=>{const p=CAPITAL_PROJECTS.find(x=>x.id===id);if(p)p.photo_url=v;});
+      Object.entries(fundingSources).forEach(([id,v])=>{const p=CAPITAL_PROJECTS.find(x=>x.id===id);if(p)p.funding_source=v;});
     }
     setSaving(false);setSaved(true);
     setTimeout(()=>setSaved(false),3000);
@@ -976,7 +985,7 @@ function TMCapitalReview({refreshData}){
         <StatCard label="Projects" value={CAPITAL_PROJECTS.length} sub={`${CAPITAL_PROJECTS.filter(p=>p.status==='recommended').length} recommended`}/>
       </div>
       <Card>
-        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Capital Projects</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Set status, final funding amount, photo URL, and add TM notes for each project.</p></div>
+        <div style={{padding:'14px 20px',borderBottom:'1px solid #eef3f0'}}><h3 style={{margin:0,fontSize:13,fontWeight:700,color:'#1b2e22'}}>All Capital Projects</h3><p style={{margin:'3px 0 0',fontSize:11,color:'#7a9a86'}}>Set status, final funding amount, funding source, photo URL, and add TM notes for each project.</p></div>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
           <thead><tr style={{background:'#f2f7f4'}}>
             <th style={{...thStyle,paddingLeft:20}}>Project</th>
@@ -984,17 +993,19 @@ function TMCapitalReview({refreshData}){
             <th style={{...thStyle,textAlign:'right'}}>Total</th>
             <th style={{...thStyle,textAlign:'right',color:'#1b3a2a'}}>Final FY2027</th>
             <th style={thStyle}>Status</th>
+            <th style={thStyle}>Funding Source</th>
             <th style={thStyle}>Photo URL</th>
             <th style={thStyle}>TM Note</th>
           </tr></thead>
           <tbody>
             {CAPITAL_PROJECTS.map((proj,i)=>{const dept=DEPARTMENTS.find(d=>d.id===proj.department);return(
               <tr key={proj.id} style={{borderBottom:i<CAPITAL_PROJECTS.length-1?'1px solid #eef3f0':'none'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fbf9'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-                <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{proj.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{proj.category} · {proj.funding_source}</div></td>
+                <td style={{...tdStyle,paddingLeft:20}}><div style={{fontWeight:600,color:'#1b2e22'}}>{proj.name}</div><div style={{fontSize:10,color:'#8aaa96'}}>{proj.category}</div></td>
                 <td style={{...tdStyle,fontSize:11,color:'#5a7a66'}}>{dept?.shortName||proj.department}</td>
                 <td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{fmtFull(proj.total)}</td>
                 <td style={{...tdStyle,textAlign:'right'}}><input type="number" value={finals[proj.id]??proj.fy27_final??''} onChange={e=>setFinals(p=>({...p,[proj.id]:e.target.value}))} placeholder="—" style={{width:100,padding:'4px 7px',borderRadius:5,border:'1.5px solid #2d6a4f',fontSize:11,textAlign:'right',fontFamily:'Figtree,sans-serif',background:'#f0faf4'}}/></td>
                 <td style={tdStyle}><select value={statuses[proj.id]||proj.status} onChange={e=>setStatuses(p=>({...p,[proj.id]:e.target.value}))} style={{padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif',background:'#fff'}}><option value="recommended">Recommended</option><option value="planned">Planned</option><option value="under_review">Under Review</option><option value="deferred">Deferred</option><option value="funded">Funded</option></select></td>
+                <td style={tdStyle}><input value={fundingSources[proj.id]??proj.funding_source??''} onChange={e=>setFundingSources(p=>({...p,[proj.id]:e.target.value}))} placeholder="e.g. Free Cash, Borrowing…" style={{width:160,padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
                 <td style={tdStyle}><input value={photos[proj.id]??proj.photo_url??''} onChange={e=>setPhotos(p=>({...p,[proj.id]:e.target.value}))} placeholder="https://..." style={{width:140,padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
                 <td style={tdStyle}><input value={notes[proj.id]??proj.tm_note??''} onChange={e=>setNotes(p=>({...p,[proj.id]:e.target.value}))} placeholder="Add note..." style={{width:130,padding:'4px 7px',borderRadius:5,border:'1px solid #c8ddd4',fontSize:11,fontFamily:'Figtree,sans-serif'}}/></td>
               </tr>
@@ -1202,7 +1213,7 @@ function TMRevenueManager({refreshData}){
     setNewRow({source:'',amount:0});
   }
 
-  const fyOptions=['FY2025','FY2026','FY2027','FY2028'];
+  const fyOptions=['FY2023','FY2024','FY2025','FY2026','FY2027','FY2028','FY2029'];
 
   return(
     <div style={{padding:'32px 36px',maxWidth:900}}>
@@ -1410,7 +1421,26 @@ function TMUserManagement(){
     if(!inviteForm.email.trim()){setError('Email is required.');return;}
     setInviting(true);setError('');setInviteMsg('');
     if(_supa){
-      setInviteMsg('Invitation instructions: Go to Supabase Dashboard → Authentication → Users → Invite User and enter their email. Once they accept and sign in, their name will appear in the table below where you can assign their department and role using the Edit button.');
+      // Write a pending invitation row. The handle_new_user trigger on auth.users
+      // will consume this record and assign the correct role/dept when the invited
+      // user first signs in. This avoids the need for a service-role key in the browser.
+      const{error:insErr}=await _supa.from('pending_invitations').insert({
+        email:inviteForm.email.trim().toLowerCase(),
+        display_name:inviteForm.display_name.trim()||null,
+        role:inviteForm.role,
+        dept_id:inviteForm.dept_id||null
+      });
+      if(insErr&&insErr.code!=='23505'){// 23505 = unique violation (already invited)
+        setError(insErr.message);setInviting(false);return;
+      }
+      const alreadyExists=insErr?.code==='23505';
+      setInviteMsg(alreadyExists
+        ? `A pending invitation for ${inviteForm.email} already exists. Go to Supabase Dashboard → Authentication → Users → Invite User with that email to send the sign-in link.`
+        : `Invitation record created for ${inviteForm.email}. Next step: go to Supabase Dashboard → Authentication → Users → Invite User and enter "${inviteForm.email}". When they accept and sign in, their role (${inviteForm.role}) and department will be assigned automatically.`
+      );
+      if(!alreadyExists&&liveUsers){
+        setLiveUsers(prev=>[...prev,{id:`pending_${Date.now()}`,display_name:inviteForm.display_name||'(pending)',email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id||''}]);
+      }
     }else{
       const newUser={id:`u${Date.now()}`,display_name:inviteForm.display_name,email:inviteForm.email,role:inviteForm.role,dept_id:inviteForm.dept_id};
       setDemoUsers(prev=>[...prev,newUser]);
@@ -1519,7 +1549,7 @@ function TMUserManagement(){
           </table>
         </Card>
       )}
-      {!DEMO_MODE&&<div style={{marginTop:14,padding:'12px 16px',background:'#f2f7f4',borderRadius:8,fontSize:11,color:'#5a7a66',lineHeight:1.6}}><strong>Note:</strong> To create new staff accounts, go to your Supabase Dashboard → Authentication → Users → Invite User. Use their @suttonma.org email. Once they accept and sign in, their profile will appear here for department assignment.</div>}
+      {!DEMO_MODE&&<div style={{marginTop:14,padding:'12px 16px',background:'#f2f7f4',borderRadius:8,fontSize:11,color:'#5a7a66',lineHeight:1.6}}><strong>How to add staff:</strong> Use the "Add Staff Member" button above to register the new user's email, role, and department. Then go to your Supabase Dashboard → Authentication → Users → Invite User and enter their email. When they accept the invitation and sign in for the first time, their role and department will be assigned automatically from the record you created here.</div>}
     </div>
   );
 }
@@ -1533,8 +1563,8 @@ function TMDataUpload({onNav,refreshData}){
   const [imported,setImported]=useState(false);
   const [error,setError]=useState('');
 
-  const OPERATING_TMPL=`dept_id,fy25_actual,fy26_approved,fy27_request\ntm,412000,438000,465000\ntreasurer,348000,362000,385000\nfire,1942000,2048000,2185000`;
-  const CAPITAL_TMPL=`id,name,department,category,priority,funding_source,status,fy2027,fy2028,fy2029,description\ncap_new001,New Equipment Purchase,dpw,Equipment,high,General Fund,planned,150000,0,0,Replace aging equipment`;
+  const OPERATING_TMPL=`dept_id,fy23_actual,fy24_actual,fy25_actual,fy26_approved,fy27_request\ntm,0,0,412000,438000,465000\ntreasurer,0,0,348000,362000,385000\nfire,0,0,1942000,2048000,2185000`;
+  const CAPITAL_TMPL=`id,name,department,category,priority,funding_source,status,fy2027,fy2028,fy2029,fy2030,fy2031,description\ncap_new001,New Equipment Purchase,dpw,Equipment,high,General Fund,planned,150000,0,0,0,0,Replace aging equipment`;
 
   function parseCSVLine(line){
     const result=[];let cur='';let inQ=false;
@@ -1571,21 +1601,26 @@ function TMDataUpload({onNav,refreshData}){
     setImporting(true);setError('');
     if(type==='operating'){
       if(_supa){
-        const results=await Promise.all(preview.matched.map(r=>_supa.from('departments').update({fy25_actual:parseInt(r.fy25_actual)||0,fy26_approved:parseInt(r.fy26_approved)||0,fy27_request:parseInt(r.fy27_request)||0}).eq('id',r.dept_id)));
+        const results=await Promise.all(preview.matched.map(r=>{
+          const updates={};
+          const yearCols=['fy23_actual','fy24_actual','fy24_approved','fy25_actual','fy25_approved','fy26_actual','fy26_approved','fy27_request'];
+          yearCols.forEach(col=>{if(r[col]!==undefined&&r[col]!=='')updates[col]=parseInt(r[col])||0;});
+          return _supa.from('departments').update(updates).eq('id',r.dept_id);
+        }));
         const err=results.find(r=>r.error);
         if(err){setError('Import error: '+err.error.message);setImporting(false);return;}
         await loadAllData();if(refreshData)refreshData();
       }else{
-        preview.matched.forEach(r=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);if(dept){dept.fy25_actual=parseInt(r.fy25_actual)||dept.fy25_actual;dept.fy26_approved=parseInt(r.fy26_approved)||dept.fy26_approved;dept.fy27_request=parseInt(r.fy27_request)||dept.fy27_request;}});
+        preview.matched.forEach(r=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);if(dept){['fy23_actual','fy24_actual','fy25_actual','fy26_approved','fy27_request'].forEach(col=>{if(r[col]!==undefined&&r[col]!=='')dept[col]=parseInt(r[col])||dept[col]||0;});}});
       }
     }else{
       if(_supa){
-        const results=await Promise.all(preview.rows.map(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});return _supa.from('capital_projects').upsert({id:r.id,name:r.name,department:r.department||null,category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',description:r.description||'',total:years.reduce((s,y)=>s+y.amount,0),years});}));
+        const results=await Promise.all(preview.rows.map(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});if(parseInt(r.fy2030))years.push({year:'FY2030',amount:parseInt(r.fy2030)});if(parseInt(r.fy2031))years.push({year:'FY2031',amount:parseInt(r.fy2031)});return _supa.from('capital_projects').upsert({id:r.id,name:r.name,department:r.department||null,category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',description:r.description||'',total:years.reduce((s,y)=>s+y.amount,0),years});}));
         const err=results.find(r=>r.error);
         if(err){setError('Import error: '+err.error.message);setImporting(false);return;}
         await loadAllData();if(refreshData)refreshData();
       }else{
-        preview.rows.forEach(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});const proj={id:r.id,name:r.name,department:r.department||null,description:r.description||'',category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',total:years.reduce((s,y)=>s+y.amount,0),years};const idx=CAPITAL_PROJECTS.findIndex(p=>p.id===r.id);if(idx>=0)CAPITAL_PROJECTS[idx]=proj;else CAPITAL_PROJECTS.push(proj);});
+        preview.rows.forEach(r=>{const years=[];if(parseInt(r.fy2027))years.push({year:'FY2027',amount:parseInt(r.fy2027)});if(parseInt(r.fy2028))years.push({year:'FY2028',amount:parseInt(r.fy2028)});if(parseInt(r.fy2029))years.push({year:'FY2029',amount:parseInt(r.fy2029)});if(parseInt(r.fy2030))years.push({year:'FY2030',amount:parseInt(r.fy2030)});if(parseInt(r.fy2031))years.push({year:'FY2031',amount:parseInt(r.fy2031)});const proj={id:r.id,name:r.name,department:r.department||null,description:r.description||'',category:r.category||'',priority:r.priority||'medium',funding_source:r.funding_source||'',status:r.status||'under_review',total:years.reduce((s,y)=>s+y.amount,0),years};const idx=CAPITAL_PROJECTS.findIndex(p=>p.id===r.id);if(idx>=0)CAPITAL_PROJECTS[idx]=proj;else CAPITAL_PROJECTS.push(proj);});
       }
     }
     setImporting(false);setImported(true);
@@ -1658,16 +1693,16 @@ function TMDataUpload({onNav,refreshData}){
                   {preview.unmatched.length>0&&<div style={{background:'#fce4ec',borderRadius:7,padding:'8px 14px',fontSize:12}}><span style={{fontWeight:700,color:'#c00'}}>{preview.unmatched.length}</span><span style={{color:'#880e4f'}}> unrecognized: {preview.unmatched.map(r=>r.dept_id).join(', ')}</span></div>}
                 </div>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Department</th><th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th></tr></thead>
-                  <tbody>{preview.matched.map((r,i)=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);return(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{dept?.name||r.dept_id}</td><td style={{...tdStyle,textAlign:'right'}}>{parseInt(r.fy25_actual).toLocaleString()}</td><td style={{...tdStyle,textAlign:'right'}}>{parseInt(r.fy26_approved).toLocaleString()}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{parseInt(r.fy27_request).toLocaleString()}</td></tr>);})}</tbody>
+                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Department</th><th style={{...thStyle,textAlign:'right'}}>FY2023</th><th style={{...thStyle,textAlign:'right'}}>FY2024</th><th style={{...thStyle,textAlign:'right'}}>FY2025 Actual</th><th style={{...thStyle,textAlign:'right'}}>FY2026 Approved</th><th style={{...thStyle,textAlign:'right'}}>FY2027 Request</th></tr></thead>
+                  <tbody>{preview.matched.map((r,i)=>{const dept=DEPARTMENTS.find(d=>d.id===r.dept_id);return(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{dept?.name||r.dept_id}</td><td style={{...tdStyle,textAlign:'right',color:'#8aaa96'}}>{r.fy23_actual?parseInt(r.fy23_actual).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right',color:'#8aaa96'}}>{r.fy24_actual?parseInt(r.fy24_actual).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy25_actual?parseInt(r.fy25_actual).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy26_approved?parseInt(r.fy26_approved).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right',fontWeight:700}}>{r.fy27_request?parseInt(r.fy27_request).toLocaleString():'—'}</td></tr>);})}</tbody>
                 </table>
               </>
             ):(
               <>
                 <div style={{marginBottom:12,fontSize:12,color:'#5a7a66'}}>{preview.rows.length} capital project{preview.rows.length!==1?'s':''} to import/update</div>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Project</th><th style={thStyle}>Dept</th><th style={{...thStyle,textAlign:'right'}}>FY2027</th><th style={{...thStyle,textAlign:'right'}}>FY2028</th><th style={{...thStyle,textAlign:'right'}}>FY2029</th></tr></thead>
-                  <tbody>{preview.rows.map((r,i)=>(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{r.name}</td><td style={{...tdStyle,fontSize:10,color:'#8aaa96'}}>{r.department}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2027?parseInt(r.fy2027).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2028?parseInt(r.fy2028).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2029?parseInt(r.fy2029).toLocaleString():'—'}</td></tr>))}</tbody>
+                  <thead><tr style={{background:'#f2f7f4'}}><th style={thStyle}>Project</th><th style={thStyle}>Dept</th><th style={{...thStyle,textAlign:'right'}}>FY2027</th><th style={{...thStyle,textAlign:'right'}}>FY2028</th><th style={{...thStyle,textAlign:'right'}}>FY2029</th><th style={{...thStyle,textAlign:'right'}}>FY2030</th><th style={{...thStyle,textAlign:'right'}}>FY2031</th></tr></thead>
+                  <tbody>{preview.rows.map((r,i)=>(<tr key={i} style={{borderBottom:'1px solid #eef3f0'}}><td style={tdStyle}>{r.name}</td><td style={{...tdStyle,fontSize:10,color:'#8aaa96'}}>{r.department}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2027?parseInt(r.fy2027).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2028?parseInt(r.fy2028).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2029?parseInt(r.fy2029).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2030?parseInt(r.fy2030).toLocaleString():'—'}</td><td style={{...tdStyle,textAlign:'right'}}>{r.fy2031?parseInt(r.fy2031).toLocaleString():'—'}</td></tr>))}</tbody>
                 </table>
               </>
             )}
@@ -1681,8 +1716,8 @@ function TMDataUpload({onNav,refreshData}){
       <Card style={{padding:'16px 20px',background:'#f2f7f4'}}>
         <div style={{fontSize:12,fontWeight:700,color:'#1b2e22',marginBottom:10}}>CSV Format Reference</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,fontSize:11,color:'#5a7a66'}}>
-          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Operating Budget Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>dept_id, fy25_actual, fy26_approved, fy27_request</code><div style={{marginTop:4}}>dept_id must match existing IDs (tm, police, fire, dpw, etc.)</div></div>
-          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Capital Projects Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>id, name, department, category, priority,<br/>funding_source, status, fy2027, fy2028, fy2029, description</code></div>
+          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Operating Budget Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>dept_id, fy23_actual, fy24_actual, fy25_actual,<br/>fy26_approved, fy27_request</code><div style={{marginTop:4}}>dept_id must match existing IDs (tm, police, fire, dpw, etc.)</div></div>
+          <div><div style={{fontWeight:600,color:'#1b3a2a',marginBottom:4}}>Capital Projects Columns:</div><code style={{fontSize:10,color:'#2d6a4f',display:'block',lineHeight:1.8}}>id, name, department, category, priority,<br/>funding_source, status, fy2027, fy2028, fy2029,<br/>fy2030, fy2031, description</code></div>
         </div>
       </Card>
     </div>
